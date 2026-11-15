@@ -1,0 +1,37 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#0B111E"
+        android:pathData="M0,0h320v180h-320z"/>
+    <!-- Glowing accents -->
+    <path
+        android:fillColor="#152238"
+        android:pathData="M160,20 A70,70 0 1 0 160,160 A70,70 0 1 0 160,20 Z"/>
+    <!-- TV Remote Graphic -->
+    <path
+        android:fillColor="#101929"
+        android:strokeColor="#2F4875"
+        android:strokeWidth="3"
+        android:pathData="M125,25 H195 A12,12 0 0 1 207,37 V143 A12,12 0 0 1 195,155 H125 A12,12 0 0 1 113,143 V37 A12,12 0 0 1 125,25 Z"/>
+    <!-- Dpad Ring -->
+    <path
+        android:fillColor="#1D2A42"
+        android:pathData="M160,55 A24,24 0 1 0 160,103 A24,24 0 1 0 160,55 Z"/>
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M160,73 A6,6 0 1 0 160,85 A6,6 0 1 0 160,73 Z"/>
+    <!-- Big Mouse Cursor -->
+    <path
+        android:fillColor="#000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="3"
+        android:pathData="M175,80 L175,130 L188,117 L199,138 L209,132 L198,112 L215,112 Z"/>
+    <path
+        android:fillColor="#00E5FF"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:pathData="M178,84 L178,124 L188,114 L197,134 L205,129 L196,110 L211,110 Z"/>
+</vector>

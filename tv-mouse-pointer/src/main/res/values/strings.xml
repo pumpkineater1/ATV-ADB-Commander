@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TV Mouse Pointer</string>
+    <string name="accessibility_service_name">TV Mouse Pointer Service</string>
+    <string name="accessibility_service_description">Enables an on-screen mouse pointer controlled directly by your TV remote D-Pad, allowing you to click and scroll anywhere on screen.</string>
+</resources>
