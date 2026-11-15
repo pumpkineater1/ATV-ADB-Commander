@@ -183,6 +183,16 @@ data class OverviewTelemetry(
     val cpuPercent: Int = 18
 )
 
+data class AppNetworkUsage(
+    val packageName: String,
+    val appName: String,
+    val rxBytes: Long,
+    val txBytes: Long,
+    val rxFormatted: String = "0 MB",
+    val txFormatted: String = "0 MB",
+    val totalFormatted: String = "0 MB"
+)
+
 data class NetworkTelemetry(
     val dataUsed1HourFormatted: String = "0 MB",
     val dataUsed1DayFormatted: String = "0 MB",
@@ -194,5 +204,6 @@ data class NetworkTelemetry(
     val gateway: String = "192.168.1.1",
     val ssid: String = "Wi-Fi",
     val signalStrength: String = "-54 dBm (Good)",
-    val linkSpeed: String = "866 Mbps"
+    val linkSpeed: String = "866 Mbps",
+    val appUsageList: List<AppNetworkUsage> = emptyList()
 )

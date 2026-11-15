@@ -95,6 +95,7 @@ class AdbManager(private val context: Context) {
 
     private val _isLoadingApps = MutableStateFlow(false)
     val isLoadingApps: StateFlow<Boolean> = _isLoadingApps.asStateFlow()
+    val perAppNetworkState = MutableStateFlow<Map<String, AppNetworkUsage>>(emptyMap())
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -1835,9 +1836,19 @@ class AdbManager(private val context: Context) {
         }
     }
 
+    suspend fun openPlayStoreOnTv(packageName: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            runShell("input keyevent KEYCODE_WAKEUP")
+            runShell("am start -a android.intent.action.VIEW -d 'market://details?id=$packageName' -f 0x10000000")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun fetchNetworkTelemetry(): NetworkTelemetry = withContext(Dispatchers.IO) {
         try {
-            val cmd = "cat /proc/net/dev; echo '===NETSTATS==='; dumpsys netstats | grep -E 'st=[0-9]+' | tail -n 28; echo '===WIFI==='; dumpsys wifi | grep -E 'mWifiInfo|SSID|RSSI|Link speed' | head -n 10; echo '===ROUTE==='; ip route"
+            val cmd = "cat /proc/net/dev; echo '===NETSTATS==='; dumpsys netstats | grep -E 'st=[0-9]+' | tail -n 28; echo '===WIFI==='; dumpsys wifi | grep -E 'mWifiInfo|SSID|RSSI|Link speed' | head -n 10; echo '===ROUTE==='; ip route; echo '===UIDNET==='; pm list packages -U; echo '===UIDSTATS==='; dumpsys netstats detail | awk '/uid=[0-9]+/ { for (i=1; i<=NF; i++) if (\$i ~ /^uid=/) { split(\$i, a, \"=\"); curUid=a[2] } } /rb=[0-9]+/ { for (i=1; i<=NF; i++) { if (\$i ~ /^rb=/) { split(\$i, r, \"=\"); rx[curUid]+=r[2] } if (\$i ~ /^tb=/) { split(\$i, t, \"=\"); tx[curUid]+=t[2] } } } END { for (u in rx) if (rx[u] > 10000 || tx[u] > 10000) print u \":\" rx[u] \":\" tx[u] }'"
             val out = runShell(cmd)
 
             val parts = out.split("===NETSTATS===")
@@ -1850,7 +1861,15 @@ class AdbManager(private val context: Context) {
 
             val wifiParts = rest2.split("===ROUTE===")
             val wifiSection = wifiParts.getOrNull(0) ?: ""
-            val routeSection = wifiParts.getOrNull(1) ?: ""
+            val rest3 = wifiParts.getOrNull(1) ?: ""
+
+            val routeParts = rest3.split("===UIDNET===")
+            val routeSection = routeParts.getOrNull(0) ?: ""
+            val rest4 = routeParts.getOrNull(1) ?: ""
+
+            val uidParts = rest4.split("===UIDSTATS===")
+            val uidNetSection = uidParts.getOrNull(0) ?: ""
+            val uidStatsSection = uidParts.getOrNull(1) ?: ""
 
             var totalRxBytes = 0L
             var totalTxBytes = 0L
@@ -1942,6 +1961,49 @@ class AdbManager(private val context: Context) {
                 gateway = gwMatch.groupValues[1]
             }
 
+            // Parse per-app UID data usage (Downloaded & Uploaded)
+            val uidToPkg = mutableMapOf<String, String>()
+            uidNetSection.lines().forEach { line ->
+                if (line.startsWith("package:")) {
+                    val pName = line.substringAfter("package:").substringBefore(" uid:").trim()
+                    val uids = line.substringAfter("uid:").trim().split(",")
+                    uids.forEach { u ->
+                        val cleanUid = u.trim()
+                        if (cleanUid.isNotEmpty()) uidToPkg[cleanUid] = pName
+                    }
+                }
+            }
+
+            val appUsageMap = mutableMapOf<String, AppNetworkUsage>()
+            uidStatsSection.lines().forEach { line ->
+                val segs = line.trim().split(":")
+                if (segs.size == 3) {
+                    val uid = segs[0].trim()
+                    val rx = segs[1].toLongOrNull() ?: 0L
+                    val tx = segs[2].toLongOrNull() ?: 0L
+                    if (rx > 0 || tx > 0) {
+                        val pkg = uidToPkg[uid] ?: if (uid.toIntOrNull() in 0..1000) "android" else "uid_$uid"
+                        val existing = appUsageMap[pkg]
+                        val totalRx = (existing?.rxBytes ?: 0L) + rx
+                        val totalTx = (existing?.txBytes ?: 0L) + tx
+                        val fName = labelCache[pkg] ?: com.atv.adbcommander.util.AppCatalog.getEntry(pkg).friendlyName
+                        val appUsage = AppNetworkUsage(
+                            packageName = pkg,
+                            appName = fName,
+                            rxBytes = totalRx,
+                            txBytes = totalTx,
+                            rxFormatted = formatNetBytes(totalRx),
+                            txFormatted = formatNetBytes(totalTx),
+                            totalFormatted = formatNetBytes(totalRx + totalTx)
+                        )
+                        appUsageMap[pkg] = appUsage
+                    }
+                }
+            }
+
+            val sortedAppUsage = appUsageMap.values.sortedByDescending { it.rxBytes + it.txBytes }
+            perAppNetworkState.value = appUsageMap
+
             val conn = connectionState.value
             val ip = if (conn is ConnectionState.Connected) conn.host else "192.168.1.xxx"
 
@@ -1956,7 +2018,8 @@ class AdbManager(private val context: Context) {
                 gateway = gateway,
                 ssid = ssid,
                 signalStrength = signal,
-                linkSpeed = linkSpeed
+                linkSpeed = linkSpeed,
+                appUsageList = sortedAppUsage
             )
         } catch (e: Exception) {
             val conn = connectionState.value

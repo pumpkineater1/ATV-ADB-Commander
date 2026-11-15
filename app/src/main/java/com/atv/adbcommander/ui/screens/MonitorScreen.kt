@@ -6,9 +6,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -68,6 +70,7 @@ fun MonitorScreen(
     var appToUninstall by remember { mutableStateOf<TvAppInfo?>(null) }
     var appToDisable by remember { mutableStateOf<TvAppInfo?>(null) }
     var selectedAppForDetails by remember { mutableStateOf<TvAppInfo?>(null) }
+    val netUsageMap by adbManager.perAppNetworkState.collectAsState()
     var showHistoryDialog by remember { mutableStateOf(false) }
     var appHistory by remember { mutableStateOf<List<AppHistoryRecord>>(emptyList()) }
     var ackBootloop by remember { mutableStateOf(false) }
@@ -92,6 +95,7 @@ fun MonitorScreen(
                     memoryInfo = adbManager.fetchMemoryInfo()
                     storageInfo = adbManager.fetchStorageInfo()
                     runningProcesses = adbManager.fetchRunningProcesses()
+                    adbManager.fetchNetworkTelemetry()
                 } finally {
                     isLoadingStats = false
                 }
@@ -104,6 +108,7 @@ fun MonitorScreen(
             coroutineScope.launch {
                 adbManager.refreshInstalledApps()
                 recommendations = adbManager.getModelDebloatRecommendations()
+                adbManager.fetchNetworkTelemetry()
             }
         }
     }
@@ -904,11 +909,18 @@ fun MonitorScreen(
                         items(filteredApps, key = { it.packageName }) { app ->
                             AppItemCard(
                                 app = app,
+                                netUsage = netUsageMap[app.packageName],
                                 onClick = { selectedAppForDetails = app },
                                 onLaunch = {
                                     coroutineScope.launch {
                                         adbManager.launchApp(app.packageName)
                                         Toast.makeText(context, "Launched ${if (app.appName.isNotBlank()) app.appName else app.packageName}", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onOpenTvStore = {
+                                    coroutineScope.launch {
+                                        adbManager.openPlayStoreOnTv(app.packageName)
+                                        Toast.makeText(context, "Opening TV Play Store...", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onForceStop = {
@@ -1226,6 +1238,7 @@ fun MonitorScreen(
         AppDetailsBottomSheet(
             app = selectedAppForDetails!!,
             adbManager = adbManager,
+            netUsage = netUsageMap[selectedAppForDetails!!.packageName],
             onDismiss = { selectedAppForDetails = null },
             onRefresh = { refreshApps() }
         )
@@ -1318,8 +1331,10 @@ fun AppIconView(
 @Composable
 fun AppItemCard(
     app: TvAppInfo,
+    netUsage: AppNetworkUsage? = null,
     onClick: () -> Unit,
     onLaunch: () -> Unit,
+    onOpenTvStore: () -> Unit,
     onForceStop: () -> Unit,
     onDisable: () -> Unit,
     onEnable: () -> Unit,
@@ -1362,7 +1377,10 @@ fun AppItemCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                ) {
                     // System vs User Badge
                     Text(
                         text = if (app.isSystemApp) "SYSTEM" else "USER",
@@ -1389,6 +1407,21 @@ fun AppItemCard(
                             .padding(horizontal = 5.dp, vertical = 2.dp)
                     )
 
+                    // Individual App Data Usage (Downloaded & Uploaded)
+                    if (netUsage != null && (netUsage.rxBytes > 0 || netUsage.txBytes > 0)) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "↓ ${netUsage.rxFormatted} · ↑ ${netUsage.txFormatted}",
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TellySuccess,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(TellySuccessContainer)
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                    }
+
                     if (app.isSystemApp) {
                         Spacer(modifier = Modifier.width(6.dp))
                         val (sLabel, sColor) = when (app.safetyLevel) {
@@ -1413,34 +1446,12 @@ fun AppItemCard(
             // Quick Action Buttons
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
-                    onClick = {
-                        try {
-                            val intent = android.content.Intent(
-                                android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse("market://details?id=${app.packageName}")
-                            ).apply {
-                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            try {
-                                val webIntent = android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse("https://play.google.com/store/apps/details?id=${app.packageName}")
-                                ).apply {
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(webIntent)
-                            } catch (e2: Exception) {
-                                Toast.makeText(context, "Cannot open Play Store: ${e2.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
+                    onClick = onOpenTvStore,
                     modifier = Modifier.size(34.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.ShoppingBag,
-                        contentDescription = "Play Store",
+                        contentDescription = "TV Play Store",
                         tint = TellyOnSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -1475,6 +1486,7 @@ fun AppItemCard(
 fun AppDetailsBottomSheet(
     app: TvAppInfo,
     adbManager: AdbManager,
+    netUsage: AppNetworkUsage? = null,
     onDismiss: () -> Unit,
     onRefresh: () -> Unit
 ) {
@@ -1627,6 +1639,122 @@ fun AppDetailsBottomSheet(
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                 color = bannerFg
                             )
+                        }
+                    }
+                }
+            }
+
+            // Network Data Usage Card (Individual App Downloaded & Uploaded)
+            if (netUsage != null && (netUsage.rxBytes > 0 || netUsage.txBytes > 0)) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = TellySurfaceContainer,
+                    border = BorderStroke(1.dp, TellyOutlineSubtle),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DataUsage,
+                                contentDescription = null,
+                                tint = TellyOnSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Network Data Consumption",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TellyOnSurface
+                            )
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Downloaded
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = TellySurfaceContainerHigh
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "DOWNLOADED",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp
+                                        ),
+                                        color = TellyOnSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "↓ ${netUsage.rxFormatted}",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = TellySuccess
+                                    )
+                                }
+                            }
+
+                            // Uploaded
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = TellySurfaceContainerHigh
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "UPLOADED",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp
+                                        ),
+                                        color = TellyOnSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "↑ ${netUsage.txFormatted}",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = TellyOnSurface
+                                    )
+                                }
+                            }
+
+                            // Total
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = TellySurfaceContainerHigh
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "TOTAL",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp
+                                        ),
+                                        color = TellyOnSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = netUsage.totalFormatted,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = TellyOnSurface
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1796,73 +1924,25 @@ fun AppDetailsBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Row 4: Play Store Links (Phone & TV)
-            Row(
+            // Open on TV Play Store (Only TV Store, Not Mobile!)
+            Button(
+                onClick = {
+                    coroutineScope.launch {
+                        adbManager.openPlayStoreOnTv(app.packageName)
+                        Toast.makeText(context, "Opening TV Play Store...", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TellySurfaceContainerHigh,
+                    contentColor = TellyOnSurface
+                ),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, TellyOutlineSubtle)
             ) {
-                // Open in Phone Play Store
-                FilledTonalButton(
-                    onClick = {
-                        try {
-                            val intent = android.content.Intent(
-                                android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse("market://details?id=${app.packageName}")
-                            ).apply {
-                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            try {
-                                val webIntent = android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse("https://play.google.com/store/apps/details?id=${app.packageName}")
-                                ).apply {
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(webIntent)
-                            } catch (e2: Exception) {
-                                Toast.makeText(context, "Cannot open Play Store: ${e2.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = TellySurfaceContainerHigh,
-                        contentColor = TellyOnSurface
-                    ),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ShoppingBag,
-                        contentDescription = "Play Store",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Play Store", fontWeight = FontWeight.SemiBold)
-                }
-
-                // Open on TV Play Store
-                OutlinedButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            adbManager.runShell("am start -a android.intent.action.VIEW -d 'market://details?id=${app.packageName}'")
-                            Toast.makeText(context, "Opened on TV Play Store", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, TellyOutlineSubtle),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TellyOnSurface)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tv,
-                        contentDescription = "TV Store",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("TV Store")
-                }
+                Icon(Icons.Default.ShoppingBag, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Open on TV Play Store", fontWeight = FontWeight.Bold)
             }
         }
     }

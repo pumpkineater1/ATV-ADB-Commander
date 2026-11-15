@@ -646,8 +646,9 @@ private fun NetworkTabContent(
                         ) {
                             Text(
                                 text = "↓ ${net.currentRxSpeed}  ↑ ${net.currentTxSpeed}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = TellySuccess
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                color = TellySuccess,
+                                maxLines = 1
                             )
                         }
                     }
@@ -740,6 +741,79 @@ private fun NetworkTabContent(
                                 text = net.totalBootFormatted,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = TellyOnSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Individual App Data Usage (Downloaded & Uploaded)
+        if (net.appUsageList.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Individual App Data (Downloaded & Uploaded)",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TellyOnSurface
+                    )
+                    Text(
+                        text = "${net.appUsageList.size} apps",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TellyOnSurfaceVariant
+                    )
+                }
+            }
+
+            items(net.appUsageList.take(25)) { appUsage ->
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = TellySurfaceContainer,
+                    border = BorderStroke(1.dp, TellyOutlineSubtle),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = appUsage.appName,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = TellyOnSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = appUsage.packageName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TellyOnSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "↓ ${appUsage.rxFormatted}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = TellySuccess
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "↑ ${appUsage.txFormatted}",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                    color = TellyOnSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = "Total: ${appUsage.totalFormatted}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TellyOnSurfaceVariant
                             )
                         }
                     }
