@@ -182,3 +182,17 @@ data class OverviewTelemetry(
     val memory: MemoryInfo = MemoryInfo(),
     val cpuPercent: Int = 18
 )
+
+data class NetworkTelemetry(
+    val dataUsed1HourFormatted: String = "0 MB",
+    val dataUsed1DayFormatted: String = "0 MB",
+    val totalBootFormatted: String = "0 MB",
+    val currentRxSpeed: String = "0 KB/s",
+    val currentTxSpeed: String = "0 KB/s",
+    val interfaceName: String = "wlan0 (Wi-Fi)",
+    val ipAddress: String = "192.168.1.xxx",
+    val gateway: String = "192.168.1.1",
+    val ssid: String = "Wi-Fi",
+    val signalStrength: String = "-54 dBm (Good)",
+    val linkSpeed: String = "866 Mbps"
+)

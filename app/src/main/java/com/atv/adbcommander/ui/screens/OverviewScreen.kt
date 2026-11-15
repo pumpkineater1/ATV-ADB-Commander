@@ -899,13 +899,12 @@ fun OverviewScreen(
                         }
                     }
 
-                    TextButton(onClick = onOpenAdvanced) {
-                        Text(
-                            text = "Check for updates",
-                            color = TellyTealPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "View Details",
+                        tint = TellyOnSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }

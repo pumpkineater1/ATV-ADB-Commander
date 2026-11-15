@@ -1326,6 +1326,7 @@ fun AppItemCard(
     onUninstall: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -1409,24 +1410,60 @@ fun AppItemCard(
                 }
             }
 
-            // Quick Play Button
-            if (app.isEnabled) {
-                IconButton(onClick = onLaunch, modifier = Modifier.size(36.dp)) {
+            // Quick Action Buttons
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = {
+                        try {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("market://details?id=${app.packageName}")
+                            ).apply {
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            try {
+                                val webIntent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("https://play.google.com/store/apps/details?id=${app.packageName}")
+                                ).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(webIntent)
+                            } catch (e2: Exception) {
+                                Toast.makeText(context, "Cannot open Play Store: ${e2.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.size(34.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Launch",
-                        tint = TellyTealPrimary,
-                        modifier = Modifier.size(22.dp)
+                        imageVector = Icons.Default.ShoppingBag,
+                        contentDescription = "Play Store",
+                        tint = TellyOnSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-            } else {
-                IconButton(onClick = onEnable, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Enable",
-                        tint = TellyTealPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
+
+                if (app.isEnabled) {
+                    IconButton(onClick = onLaunch, modifier = Modifier.size(34.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Launch",
+                            tint = TellyTealPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                } else {
+                    IconButton(onClick = onEnable, modifier = Modifier.size(34.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Enable",
+                            tint = TellyTealPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1754,6 +1791,77 @@ fun AppDetailsBottomSheet(
                     Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("TV Settings")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Row 4: Play Store Links (Phone & TV)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Open in Phone Play Store
+                FilledTonalButton(
+                    onClick = {
+                        try {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("market://details?id=${app.packageName}")
+                            ).apply {
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            try {
+                                val webIntent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("https://play.google.com/store/apps/details?id=${app.packageName}")
+                                ).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(webIntent)
+                            } catch (e2: Exception) {
+                                Toast.makeText(context, "Cannot open Play Store: ${e2.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = TellySurfaceContainerHigh,
+                        contentColor = TellyOnSurface
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ShoppingBag,
+                        contentDescription = "Play Store",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Play Store", fontWeight = FontWeight.SemiBold)
+                }
+
+                // Open on TV Play Store
+                OutlinedButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            adbManager.runShell("am start -a android.intent.action.VIEW -d 'market://details?id=${app.packageName}'")
+                            Toast.makeText(context, "Opened on TV Play Store", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, TellyOutlineSubtle),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TellyOnSurface)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tv,
+                        contentDescription = "TV Store",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("TV Store")
                 }
             }
         }

@@ -8,21 +8,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-// Tellyscope Branded Dark Theme
+// Minimalist Monochrome & Titanium Dark Theme
 private val DarkBrandColorScheme = darkColorScheme(
     primary = TellyTealPrimary,
-    onPrimary = TellyTealDark,
+    onPrimary = Color(0xFF0A0C0E),
     primaryContainer = TellyTealDark,
     onPrimaryContainer = TellyTealGlow,
     inversePrimary = TellyTealInverse,
     secondary = TellySecondary,
-    onSecondary = Color(0xFF1B3534),
+    onSecondary = Color(0xFF15181C),
     secondaryContainer = TellySecondaryContainer,
-    onSecondaryContainer = Color(0xFFCCE8E8),
+    onSecondaryContainer = Color(0xFFE4E9EE),
     tertiary = TellyTertiary,
-    onTertiary = Color(0xFF1C314B),
+    onTertiary = Color(0xFF15181C),
     tertiaryContainer = TellyTertiaryContainer,
-    onTertiaryContainer = Color(0xFFD3E4FF),
+    onTertiaryContainer = Color(0xFFFFFFFF),
     background = TellyDarkBackground,
     surface = TellyDarkSurface,
     surfaceVariant = TellySurfaceVariant,
@@ -35,11 +35,11 @@ private val DarkBrandColorScheme = darkColorScheme(
     surfaceContainerLow = TellySurfaceContainerLow,
     surfaceContainerLowest = TellySurfaceContainerLowest,
     outline = TellyOutline,
-    outlineVariant = Color(0xFF2B3232),
+    outlineVariant = Color(0xFF1F2429),
     error = TellyError,
-    onError = Color(0xFF690005),
+    onError = Color(0xFF3B0B0B),
     errorContainer = TellyErrorContainer,
-    onErrorContainer = Color(0xFFFFDAD6)
+    onErrorContainer = Color(0xFFFFFFFF)
 )
 
 @Composable

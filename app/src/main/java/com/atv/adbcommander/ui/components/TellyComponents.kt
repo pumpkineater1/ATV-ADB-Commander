@@ -41,7 +41,7 @@ import kotlin.math.sin
 @Composable
 fun TellyTvCookie(
     modifier: Modifier = Modifier,
-    size: Dp = 68.dp,
+    size: Dp = 54.dp,
     icon: ImageVector = Icons.Default.Tv,
     tint: Color = TellyTealPrimary,
     containerColor: Color = TellyTealDark
@@ -174,12 +174,12 @@ fun TellyWavyProgressBar(
 }
 
 /**
- * Standard Tellyscope Rounded Card with 24.dp corners.
+ * Standard Compact Card with 16.dp corners.
  */
 @Composable
 fun TellyCard(
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(24.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(16.dp),
     containerColor: Color = TellySurfaceContainer,
     borderColor: Color = TellyOutlineSubtle,
     onClick: (() -> Unit)? = null,
@@ -194,7 +194,7 @@ fun TellyCard(
             modifier = modifier
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(14.dp),
                 content = content
             )
         }
@@ -206,7 +206,7 @@ fun TellyCard(
             modifier = modifier
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(14.dp),
                 content = content
             )
         }
@@ -227,22 +227,22 @@ fun TellyStatusChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(containerColor)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = color,
-            modifier = Modifier.size(15.dp)
+            modifier = Modifier.size(13.dp)
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(5.dp))
         Text(
             text = text,
-            style = MaterialTheme.typography.labelMedium.copy(
+            style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp
+                fontSize = 11.sp
             ),
             color = TellyOnSurface
         )

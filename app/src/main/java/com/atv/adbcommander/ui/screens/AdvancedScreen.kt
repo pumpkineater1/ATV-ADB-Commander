@@ -56,6 +56,7 @@ fun AdvancedScreen(
     var memoryInfo by remember { mutableStateOf(MemoryInfo()) }
     var runningProcesses by remember { mutableStateOf<List<RunningProcessInfo>>(emptyList()) }
     var cdnPings by remember { mutableStateOf<List<CdnPingResult>>(emptyList()) }
+    var netTelemetry by remember { mutableStateOf(NetworkTelemetry()) }
     var deviceModel by remember { mutableStateOf("Android TV") }
     var ipAddress by remember { mutableStateOf("192.168.1.xxx") }
     var displayRes by remember { mutableStateOf("1920x1080 @ 60Hz") }
@@ -84,12 +85,14 @@ fun AdvancedScreen(
                     val mem = adbManager.fetchMemoryInfo()
                     val procs = adbManager.fetchRunningProcesses()
                     val pings = adbManager.runCdnPingTest()
+                    val net = adbManager.fetchNetworkTelemetry()
 
                     withContext(Dispatchers.Main) {
                         cpuInfo = cp
                         memoryInfo = mem
                         runningProcesses = procs.sortedByDescending { it.memoryMb }
                         cdnPings = pings
+                        netTelemetry = net
 
                         val newCpu = cp.totalUsagePercent.toFloat().coerceAtLeast(15f)
                         cpuHistory = (cpuHistory.drop(1) + listOf(newCpu))
@@ -245,7 +248,7 @@ fun AdvancedScreen(
             when (selectedTab) {
                 AdvancedTab.CPU -> CpuTabContent(cpuInfo, cpuHistory, runningProcesses)
                 AdvancedTab.RAM -> RamTabContent(memoryInfo, ramHistory, runningProcesses, adbManager, scope, context)
-                AdvancedTab.NETWORK -> NetworkTabContent(ipAddress, cdnPings)
+                AdvancedTab.NETWORK -> NetworkTabContent(netTelemetry, cdnPings)
                 AdvancedTab.THIS_TV -> ThisTvTabContent(deviceModel, displayRes, ipAddress)
                 AdvancedTab.PROCESSES -> ProcessesTabContent(runningProcesses, adbManager, scope, context)
             }
@@ -586,14 +589,165 @@ private fun RamTabContent(
 
 @Composable
 private fun NetworkTabContent(
-    ipAddress: String,
+    net: NetworkTelemetry,
     cdnPings: List<CdnPingResult>
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 1. Data Usage Card (1 Day, 1 Hour, Total, Live Bandwidth)
+        item {
+            TellyCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(TellySurfaceContainerHigh),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DataUsage,
+                                contentDescription = null,
+                                tint = TellyOnSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Data Usage",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = TellyOnSurface
+                            )
+                            Text(
+                                text = "Traffic metrics via Android OS netstats",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TellyOnSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Live Speed Pill
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = TellySurfaceContainerHigh
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "↓ ${net.currentRxSpeed}  ↑ ${net.currentTxSpeed}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TellySuccess
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Three Stat Boxes: 1 Hour, 1 Day, Since Boot
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Box 1: 1 Hour
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        color = TellySurfaceContainerHigh,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "LAST 1 HOUR",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                ),
+                                color = TellyOnSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = net.dataUsed1HourFormatted,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = TellyOnSurface
+                            )
+                        }
+                    }
+
+                    // Box 2: 1 Day
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        color = TellySurfaceContainerHigh,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "LAST 1 DAY",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                ),
+                                color = TellyOnSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = net.dataUsed1DayFormatted,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = TellyOnSurface
+                            )
+                        }
+                    }
+
+                    // Box 3: Total Boot
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        color = TellySurfaceContainerHigh,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "SINCE BOOT",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                ),
+                                color = TellyOnSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = net.totalBootFormatted,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = TellyOnSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Active Network Connection Card
         item {
             TellyCard {
                 Text(
@@ -601,15 +755,17 @@ private fun NetworkTabContent(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = TellyOnSurface
                 )
-                Spacer(Modifier.height(12.dp))
-                DetailRow("Interface", "wlan0 (Wi-Fi 5GHz)")
-                DetailRow("IP Address", ipAddress)
-                DetailRow("Gateway", "192.168.1.1")
-                DetailRow("Signal Strength", "-54 dBm (Excellent)")
-                DetailRow("Link Speed", "866 Mbps")
+                Spacer(Modifier.height(10.dp))
+                DetailRow("Interface", net.interfaceName)
+                DetailRow("Wi-Fi SSID", net.ssid)
+                DetailRow("IP Address", net.ipAddress)
+                DetailRow("Gateway", net.gateway)
+                DetailRow("Signal Strength", net.signalStrength)
+                DetailRow("Link Speed", net.linkSpeed)
             }
         }
 
+        // 3. Streaming CDN Latency
         item {
             Text(
                 text = "Streaming CDN Latency",
@@ -620,19 +776,20 @@ private fun NetworkTabContent(
 
         items(cdnPings) { ping ->
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 color = TellySurfaceContainer,
+                border = BorderStroke(1.dp, TellyOutlineSubtle),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
                         Text(
                             text = ping.name,
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = TellyOnSurface
                         )
                         Text(
@@ -643,14 +800,14 @@ private fun NetworkTabContent(
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (ping.latencyMs < 50) TellySuccessContainer else TellySurfaceContainerHigh
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (ping.latencyMs in 0..50) TellySuccessContainer else TellySurfaceContainerHigh
                     ) {
                         Text(
-                            text = "${ping.latencyMs} ms",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                            color = if (ping.latencyMs < 50) TellySuccess else TellyOnSurface,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            text = if (ping.latencyMs >= 0) "${ping.latencyMs} ms" else "Timeout",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = if (ping.latencyMs in 0..50) TellySuccess else TellyOnSurface,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }
