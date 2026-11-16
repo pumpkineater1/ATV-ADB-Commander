@@ -798,16 +798,42 @@ fun MonitorScreen(
                         )
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // TV Play Store Direct Open Button
+                    Surface(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clickable {
+                                coroutineScope.launch {
+                                    val ok = adbManager.openPlayStoreOnTv()
+                                    Toast.makeText(context, if (ok) "Opening TV Play Store..." else "Failed to open TV Play Store", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = DarkCard,
+                        border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.45f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingBag,
+                                contentDescription = "TV Play Store",
+                                tint = Color(0xFF00E676),
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Surface(
                         modifier = Modifier
-                            .size(50.dp)
+                            .size(42.dp)
                             .clickable {
                                 appHistory = adbManager.getAppHistory()
                                 showHistoryDialog = true
                             },
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = DarkCard,
                         border = BorderStroke(1.dp, BorderSubtle)
                     ) {
@@ -824,7 +850,7 @@ fun MonitorScreen(
                                     imageVector = Icons.Default.History,
                                     contentDescription = "Debloat History",
                                     tint = CyberCyan,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }

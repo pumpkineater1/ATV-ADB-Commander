@@ -458,6 +458,12 @@ fun RemoteScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            StreamingAppPill("Play Store", Color(0xFF00E676), Color.Black) {
+                coroutineScope.launch {
+                    val ok = adbManager.openPlayStoreOnTv()
+                    Toast.makeText(context, if (ok) "Opening TV Play Store..." else "Failed to open Play Store", Toast.LENGTH_SHORT).show()
+                }
+            }
             StreamingAppPill("YouTube", Color(0xFFFF0000), Color.White) {
                 coroutineScope.launch { adbManager.launchApp("com.google.android.youtube.tv") }
             }

@@ -249,10 +249,10 @@ fun OverviewScreen(
                 Spacer(Modifier.height(14.dp))
 
                 // Prominent Quick Action Buttons:
-                // [ ✦ Screensaver ]   [ ⟳ Reboot ]   [ + TV ]
+                // [ ✦ Screensaver ]   [ 🛍 Play Store ]   [ ⟳ Reboot ]   [ + TV ]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isConnected) {
@@ -267,82 +267,111 @@ fun OverviewScreen(
                             shape = RoundedCornerShape(20.dp),
                             color = TellySurfaceContainerHigh,
                             border = BorderStroke(1.dp, TellyOutlineSubtle),
-                            modifier = Modifier.height(40.dp)
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = "Screensaver",
                                     tint = TellyTealPrimary,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
-                                Spacer(Modifier.width(6.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = "Screensaver",
-                                    fontSize = 13.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TellyOnSurface
                                 )
                             }
                         }
 
-                        Spacer(Modifier.width(10.dp))
+                        // 2. TV Play Store Pill (Direct One-Click Launch)
+                        Surface(
+                            onClick = {
+                                scope.launch {
+                                    val ok = adbManager.openPlayStoreOnTv()
+                                    Toast.makeText(context, if (ok) "Opening TV Play Store..." else "Failed to open Play Store", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            color = TellySurfaceContainerHigh,
+                            border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.45f)),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ShoppingBag,
+                                    contentDescription = "Play Store",
+                                    tint = Color(0xFF00E676),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "Play Store",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TellyOnSurface
+                                )
+                            }
+                        }
 
-                        // 2. Reboot Pill
+                        // 3. Reboot Pill
                         Surface(
                             onClick = { showRebootDialog = true },
                             shape = RoundedCornerShape(20.dp),
                             color = TellySurfaceContainerHigh,
                             border = BorderStroke(1.dp, TellyOutlineSubtle),
-                            modifier = Modifier.height(40.dp)
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.RestartAlt,
                                     contentDescription = "Reboot",
                                     tint = Color(0xFFFFB74D),
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
-                                Spacer(Modifier.width(6.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = "Reboot",
-                                    fontSize = 13.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TellyOnSurface
                                 )
                             }
                         }
 
-                        Spacer(Modifier.width(10.dp))
-
-                        // 3. + TV Pill
+                        // 4. + TV Pill
                         Surface(
                             onClick = onAddDevice,
                             shape = RoundedCornerShape(20.dp),
                             color = TellySurfaceContainerHigh,
                             border = BorderStroke(1.dp, TellyOutlineSubtle),
-                            modifier = Modifier.height(40.dp)
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Add,
                                     contentDescription = "Add TV",
                                     tint = TellyOnSurfaceVariant,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(3.dp))
                                 Text(
                                     text = "TV",
-                                    fontSize = 13.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TellyOnSurfaceVariant
                                 )
@@ -1014,6 +1043,12 @@ fun OverviewScreen(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    QuickLaunchPill("Play Store", "com.android.vending", Color(0xFF00E676), Color.Black) {
+                        scope.launch {
+                            val ok = adbManager.openPlayStoreOnTv()
+                            Toast.makeText(context, if (ok) "Opening TV Play Store..." else "Failed to open Play Store", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     QuickLaunchPill("YouTube", "com.google.android.youtube.tv", Color(0xFFFF0000), Color.White) {
                         scope.launch { adbManager.launchApp("com.google.android.youtube.tv") }
                     }

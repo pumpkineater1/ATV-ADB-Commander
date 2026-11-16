@@ -1848,10 +1848,14 @@ class AdbManager(private val context: Context) {
         }
     }
 
-    suspend fun openPlayStoreOnTv(packageName: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun openPlayStoreOnTv(packageName: String = ""): Boolean = withContext(Dispatchers.IO) {
         try {
             runShell("input keyevent KEYCODE_WAKEUP")
-            runShell("am start -a android.intent.action.VIEW -d 'market://details?id=$packageName' -f 0x10000000")
+            if (packageName.isBlank()) {
+                runShell("am start -n com.android.vending/com.google.android.finsky.tvmainactivity.TvMainActivity || monkey -p com.android.vending -c android.intent.category.LEANBACK_LAUNCHER 1 || monkey -p com.android.vending 1")
+            } else {
+                runShell("am start -a android.intent.action.VIEW -d 'market://details?id=$packageName' -f 0x10000000")
+            }
             true
         } catch (e: Exception) {
             false
