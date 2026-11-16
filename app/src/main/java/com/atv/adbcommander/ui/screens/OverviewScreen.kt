@@ -455,7 +455,7 @@ fun OverviewScreen(
                         border = BorderStroke(1.dp, TellyOutlineSubtle),
                         modifier = Modifier
                             .weight(1f)
-                            .height(86.dp)
+                            .height(94.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -518,7 +518,7 @@ fun OverviewScreen(
                         border = BorderStroke(1.dp, TellyOutlineSubtle),
                         modifier = Modifier
                             .weight(1f)
-                            .height(86.dp)
+                            .height(94.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -581,7 +581,7 @@ fun OverviewScreen(
                         border = BorderStroke(1.dp, TellyOutlineSubtle),
                         modifier = Modifier
                             .weight(1f)
-                            .height(86.dp)
+                            .height(94.dp)
                     ) {
                         Column(
                             modifier = Modifier
