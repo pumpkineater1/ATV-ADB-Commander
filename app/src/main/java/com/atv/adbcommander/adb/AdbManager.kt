@@ -721,20 +721,25 @@ class AdbManager(private val context: Context) {
         var user = 0
         var sys = 0
         var idle = 100
+        var totalCpuCapacity = 100
         val processes = mutableListOf<ProcessCpuInfo>()
 
         val lines = output.lines()
         for (line in lines) {
             val lower = line.lowercase()
-            // e.g. "User 12%, System 8%, IOW 0%, IRQ 0%" or "800%cpu  25%user   0%nice  15%sys 750%idle"
+            // e.g. "User 12%, System 8%, IOW 0%, IRQ 0%" or "400%cpu  48%user   0%nice  21%sys 327%idle"
             if (lower.contains("user") && lower.contains("sys")) {
+                val cpuCapacityMatch = Regex("([0-9]+)%?\\s*cpu").find(lower)
                 val userMatch = Regex("([0-9]+)%?\\s*user").find(lower)
                 val sysMatch = Regex("([0-9]+)%?\\s*sys").find(lower)
                 val idleMatch = Regex("([0-9]+)%?\\s*idle").find(lower)
 
+                if (cpuCapacityMatch != null) {
+                    totalCpuCapacity = cpuCapacityMatch.groupValues[1].toIntOrNull() ?: 100
+                }
                 if (userMatch != null) user = userMatch.groupValues[1].toIntOrNull() ?: 0
                 if (sysMatch != null) sys = sysMatch.groupValues[1].toIntOrNull() ?: 0
-                if (idleMatch != null) idle = idleMatch.groupValues[1].toIntOrNull() ?: (100 - user - sys)
+                if (idleMatch != null) idle = idleMatch.groupValues[1].toIntOrNull() ?: (totalCpuCapacity - user - sys)
             } else if (line.matches(Regex("^\\s*\\d+.*"))) {
                 // Process line: PID USER ... CPU% ... NAME
                 val parts = line.trim().split(Regex("\\s+"))
@@ -748,12 +753,19 @@ class AdbManager(private val context: Context) {
             }
         }
 
-        val total = (user + sys).coerceIn(0, 100)
+        // Multi-core normalization: On Android/Linux, top sums across all cores (e.g., 4 cores = 400% total)
+        // Normalize by coreCount so user, sys, idle, and total correctly reflect 0-100% of actual TV capacity.
+        val coreCount = if (totalCpuCapacity >= 200) (totalCpuCapacity / 100) else if ((user + sys + idle) >= 200) ((user + sys + idle + 50) / 100) else 1
+        val normUser = ((user + coreCount / 2) / coreCount).coerceIn(0, 100)
+        val normSys = ((sys + coreCount / 2) / coreCount).coerceIn(0, 100)
+        val normIdle = ((idle + coreCount / 2) / coreCount).coerceIn(0, 100)
+        val total = (normUser + normSys).coerceIn(0, 100)
+
         return CpuInfo(
             totalUsagePercent = total,
-            userPercent = user,
-            systemPercent = sys,
-            idlePercent = idle,
+            userPercent = normUser,
+            systemPercent = normSys,
+            idlePercent = normIdle,
             topProcesses = processes.take(6),
             rawOutput = output
         )
