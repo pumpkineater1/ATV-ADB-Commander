@@ -195,6 +195,7 @@ fun TellyCard(
     shape: RoundedCornerShape = RoundedCornerShape(16.dp),
     containerColor: Color = TellySurfaceContainer,
     borderColor: Color = TellyOutlineSubtle,
+    contentPadding: PaddingValues = PaddingValues(14.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -222,7 +223,7 @@ fun TellyCard(
             }
         ) {
             Column(
-                modifier = Modifier.padding(14.dp),
+                modifier = Modifier.padding(contentPadding),
                 content = content
             )
         }
@@ -234,7 +235,7 @@ fun TellyCard(
             modifier = modifier
         ) {
             Column(
-                modifier = Modifier.padding(14.dp),
+                modifier = Modifier.padding(contentPadding),
                 content = content
             )
         }
