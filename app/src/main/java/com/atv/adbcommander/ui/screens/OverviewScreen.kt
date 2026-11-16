@@ -213,7 +213,7 @@ fun OverviewScreen(
                     text = if (isConnected) deviceModel else "Android TV",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
+                        fontSize = 24.sp
                     ),
                     color = TellyOnSurface,
                     textAlign = TextAlign.Center
@@ -227,28 +227,36 @@ fun OverviewScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
 
-                // Unified Status & Quick Actions Pill Row:
-                // [ ✔ Running fine ]   [ ✦ Screensaver ]   [ ⟳ Reboot ]   [ + TV ]
+                // TV Status Chip ("Running fine")
+                if (isConnected) {
+                    TellyStatusChip(
+                        text = "Running fine",
+                        icon = Icons.Default.CheckCircle,
+                        color = TellySuccess,
+                        containerColor = TellySuccessContainer
+                    )
+                } else {
+                    TellyStatusChip(
+                        text = "Offline",
+                        icon = Icons.Default.Close,
+                        color = TellyError,
+                        containerColor = TellyErrorContainer
+                    )
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Prominent Quick Action Buttons:
+                // [ ✦ Screensaver ]   [ ⟳ Reboot ]   [ + TV ]
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isConnected) {
-                        TellyStatusChip(
-                            text = "Running fine",
-                            icon = Icons.Default.CheckCircle,
-                            color = TellySuccess,
-                            containerColor = TellySuccessContainer
-                        )
-
-                        Spacer(Modifier.width(8.dp))
-
-                        // Screensaver Action Pill
+                        // 1. Screensaver Pill
                         Surface(
                             onClick = {
                                 scope.launch {
@@ -256,120 +264,114 @@ fun OverviewScreen(
                                     Toast.makeText(context, res, Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(20.dp),
                             color = TellySurfaceContainerHigh,
                             border = BorderStroke(1.dp, TellyOutlineSubtle),
-                            modifier = Modifier.height(30.dp)
+                            modifier = Modifier.height(40.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = "Screensaver",
                                     tint = TellyTealPrimary,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Text(
                                     text = "Screensaver",
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TellyOnSurface
                                 )
                             }
                         }
 
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
 
-                        // Reboot Action Pill
+                        // 2. Reboot Pill
                         Surface(
                             onClick = { showRebootDialog = true },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(20.dp),
                             color = TellySurfaceContainerHigh,
                             border = BorderStroke(1.dp, TellyOutlineSubtle),
-                            modifier = Modifier.height(30.dp)
+                            modifier = Modifier.height(40.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.RestartAlt,
                                     contentDescription = "Reboot",
                                     tint = Color(0xFFFFB74D),
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Text(
                                     text = "Reboot",
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TellyOnSurface
                                 )
                             }
                         }
 
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
 
-                        // + TV Pill
+                        // 3. + TV Pill
                         Surface(
                             onClick = onAddDevice,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(20.dp),
                             color = TellySurfaceContainerHigh,
                             border = BorderStroke(1.dp, TellyOutlineSubtle),
-                            modifier = Modifier.height(30.dp)
+                            modifier = Modifier.height(40.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Add,
                                     contentDescription = "Add TV",
                                     tint = TellyOnSurfaceVariant,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
-                                Spacer(Modifier.width(3.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = "TV",
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TellyOnSurfaceVariant
                                 )
                             }
                         }
                     } else {
-                        TellyStatusChip(
-                            text = "Offline",
-                            icon = Icons.Default.Close,
-                            color = TellyError,
-                            containerColor = TellyErrorContainer
-                        )
-                        Spacer(Modifier.width(8.dp))
+                        // Prominent Connect Button
                         Surface(
                             onClick = onAddDevice,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(20.dp),
                             color = TellyTealDark,
-                            border = BorderStroke(1.dp, TellyTealPrimary.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            border = BorderStroke(1.dp, TellyTealPrimary.copy(alpha = 0.6f)),
+                            modifier = Modifier.height(42.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Add,
                                     contentDescription = null,
                                     tint = TellyTealPrimary,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Text(
                                     text = "Connect TV",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
                                     color = TellyTealGlow
                                 )
                             }

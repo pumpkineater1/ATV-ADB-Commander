@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,6 +51,7 @@ enum class MainTab(val title: String, val icon: ImageVector) {
     TWEAKS("Tweaks", Icons.Default.Tune)
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +72,9 @@ class MainActivity : ComponentActivity() {
                 val backupProgress by adbManager.backupProgress.collectAsState()
                 val coroutineScope = rememberCoroutineScope()
 
-                var currentTab by remember { mutableStateOf(MainTab.OVERVIEW) }
+                val tabs = remember { MainTab.values() }
+                val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
+                val currentTab = tabs[pagerState.currentPage]
 
                 // Full-screen flows / sheets
                 var showRemoteSheet by remember { mutableStateOf(false) }
@@ -117,6 +122,13 @@ class MainActivity : ComponentActivity() {
                         showShellScreen -> showShellScreen = false
                         showAdvancedScreen -> showAdvancedScreen = false
                         showBackupScreen -> showBackupScreen = false
+                    }
+                }
+
+                // Hardware back handler for Pager: return to Overview tab before exiting app
+                BackHandler(enabled = pagerState.currentPage != 0 && !showRemoteSheet && !showAdvancedScreen && !showShellScreen && !showBackupScreen && !showLauncherScreen) {
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(0)
                     }
                 }
 
@@ -209,14 +221,14 @@ class MainActivity : ComponentActivity() {
                                         BottomNavTabItem(
                                             tab = MainTab.OVERVIEW,
                                             isSelected = currentTab == MainTab.OVERVIEW,
-                                            onClick = { currentTab = MainTab.OVERVIEW }
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(MainTab.OVERVIEW.ordinal) } }
                                         )
 
                                         // Tab 2: Apps
                                         BottomNavTabItem(
                                             tab = MainTab.APPS,
                                             isSelected = currentTab == MainTab.APPS,
-                                            onClick = { currentTab = MainTab.APPS }
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(MainTab.APPS.ordinal) } }
                                         )
 
                                         // Center Elevated Floating Remote FAB (Exact match to Tellyscope remote button)
@@ -240,14 +252,14 @@ class MainActivity : ComponentActivity() {
                                         BottomNavTabItem(
                                             tab = MainTab.FILES,
                                             isSelected = currentTab == MainTab.FILES,
-                                            onClick = { currentTab = MainTab.FILES }
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(MainTab.FILES.ordinal) } }
                                         )
 
                                         // Tab 4: Tweaks
                                         BottomNavTabItem(
                                             tab = MainTab.TWEAKS,
                                             isSelected = currentTab == MainTab.TWEAKS,
-                                            onClick = { currentTab = MainTab.TWEAKS }
+                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(MainTab.TWEAKS.ordinal) } }
                                         )
                                     }
                                 }
@@ -259,27 +271,16 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(innerPadding)
                         ) {
-                            AnimatedContent(
-                                targetState = currentTab,
-                                transitionSpec = {
-                                    if (targetState.ordinal > initialState.ordinal) {
-                                        (slideInHorizontally { width -> width / 4 } + fadeIn()).togetherWith(
-                                            slideOutHorizontally { width -> -width / 4 } + fadeOut()
-                                        )
-                                    } else {
-                                        (slideInHorizontally { width -> -width / 4 } + fadeIn()).togetherWith(
-                                            slideOutHorizontally { width -> width / 4 } + fadeOut()
-                                        )
-                                    }
-                                },
-                                label = "tab_animation"
-                            ) { tab ->
-                                when (tab) {
+                            HorizontalPager(
+                                state = pagerState,
+                                modifier = Modifier.fillMaxSize()
+                            ) { page ->
+                                when (tabs[page]) {
                                     MainTab.OVERVIEW -> OverviewScreen(
                                         adbManager = adbManager,
-                                        onNavigateToApps = { currentTab = MainTab.APPS },
-                                        onNavigateToFiles = { currentTab = MainTab.FILES },
-                                        onNavigateToTweaks = { currentTab = MainTab.TWEAKS },
+                                        onNavigateToApps = { coroutineScope.launch { pagerState.animateScrollToPage(MainTab.APPS.ordinal) } },
+                                        onNavigateToFiles = { coroutineScope.launch { pagerState.animateScrollToPage(MainTab.FILES.ordinal) } },
+                                        onNavigateToTweaks = { coroutineScope.launch { pagerState.animateScrollToPage(MainTab.TWEAKS.ordinal) } },
                                         onOpenRemote = { showRemoteSheet = true },
                                         onOpenAdvanced = { showAdvancedScreen = true },
                                         onOpenShell = { showShellScreen = true },
