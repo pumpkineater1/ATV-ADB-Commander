@@ -296,7 +296,7 @@ fun MonitorScreen(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isLoadingStats) {
+                    if (isLoadingStats || (selectedSection == 1 && isAppsLoading)) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
