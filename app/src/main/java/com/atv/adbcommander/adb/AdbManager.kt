@@ -2470,6 +2470,64 @@ class AdbManager(private val context: Context) {
         }
     }
 
+    suspend fun openFileOnTv(filePath: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        try {
+            val lower = filePath.lowercase()
+            // Wake up TV display if asleep
+            runShell("input keyevent KEYCODE_WAKEUP")
+
+            val safePath = filePath.replace("'", "'\\''")
+            val fileUri = "file://$safePath"
+
+            when {
+                // Audio files
+                listOf(".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".opus", ".wma").any { lower.endsWith(it) } -> {
+                    val res = runShell("am start -a android.intent.action.VIEW -d '$fileUri' -t 'audio/*' -f 0x10000000")
+                    if (res.contains("Error") || res.contains("No Activity found")) {
+                        runShell("am start -a android.intent.action.VIEW -d '$fileUri' -f 0x10000000")
+                    }
+                    true to "Playing music on TV..."
+                }
+                // Video files
+                listOf(".mp4", ".mkv", ".avi", ".mov", ".webm", ".ts", ".wmv", ".flv", ".m4v", ".3gp").any { lower.endsWith(it) } -> {
+                    val res = runShell("am start -a android.intent.action.VIEW -d '$fileUri' -t 'video/*' -f 0x10000000")
+                    if (res.contains("Error") || res.contains("No Activity found")) {
+                        runShell("am start -a android.intent.action.VIEW -d '$fileUri' -f 0x10000000")
+                    }
+                    true to "Playing video on TV..."
+                }
+                // Image files
+                listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp").any { lower.endsWith(it) } -> {
+                    val res = runShell("am start -a android.intent.action.VIEW -d '$fileUri' -t 'image/*' -f 0x10000000")
+                    if (res.contains("Error") || res.contains("No Activity found")) {
+                        runShell("am start -a android.intent.action.VIEW -d '$fileUri' -f 0x10000000")
+                    }
+                    true to "Opening image on TV..."
+                }
+                // APK files
+                lower.endsWith(".apk") -> {
+                    val res = runShell("pm install -r '$safePath'")
+                    if (res.contains("Success", ignoreCase = true)) {
+                        true to "Installed APK on TV successfully!"
+                    } else {
+                        false to "APK install: $res"
+                    }
+                }
+                // Other files
+                else -> {
+                    val res = runShell("am start -a android.intent.action.VIEW -d '$fileUri' -f 0x10000000")
+                    if (res.contains("Error") || res.contains("No Activity found")) {
+                        false to "No app found on TV to open this file"
+                    } else {
+                        true to "Opened on TV"
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            false to "Failed to open on TV: ${e.message}"
+        }
+    }
+
     suspend fun openAppDetailsOnTv(packageName: String): String = withContext(Dispatchers.IO) {
         try {
             runShell("am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:$packageName")

@@ -62,6 +62,17 @@ fun TvFileExplorerScreen(
     var itemToDelete by remember { mutableStateOf<TvFileItem?>(null) }
     var downloadingItem by remember { mutableStateOf<TvFileItem?>(null) }
 
+    val handlePlayOnTv: (TvFileItem) -> Unit = { item ->
+        if (isConnected) {
+            coroutineScope.launch {
+                val (ok, msg) = adbManager.openFileOnTv(item.path)
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Connect to TV first", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val loadDirectory = { path: String ->
         if (isConnected) {
             coroutineScope.launch {
@@ -406,7 +417,12 @@ fun TvFileExplorerScreen(
                             onClick = {
                                 if (item.isDirectory) {
                                     loadDirectory(item.path)
+                                } else {
+                                    handlePlayOnTv(item)
                                 }
+                            },
+                            onPlayOnTv = {
+                                handlePlayOnTv(item)
                             },
                             onDownload = {
                                 downloadingItem = item
@@ -613,6 +629,7 @@ fun TvFileExplorerScreen(
 fun TvFileRow(
     item: TvFileItem,
     onClick: () -> Unit,
+    onPlayOnTv: () -> Unit,
     onDownload: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -637,9 +654,12 @@ fun TvFileRow(
                 modifier = Modifier.weight(1f)
             ) {
                 val icon = getFileIcon(item)
+                val lower = item.name.lowercase()
                 val iconTint = if (item.isDirectory) CyberCyan
-                else if (item.name.endsWith(".apk", ignoreCase = true)) AccentGreen
-                else if (item.name.endsWith(".mp4", ignoreCase = true) || item.name.endsWith(".mkv", ignoreCase = true)) AccentAmber
+                else if (lower.endsWith(".apk")) AccentGreen
+                else if (listOf(".mp4", ".mkv", ".avi", ".mov", ".webm", ".ts", ".wmv", ".flv", ".m4v").any { lower.endsWith(it) }) AccentAmber
+                else if (listOf(".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".opus", ".wma").any { lower.endsWith(it) }) TellyTealGlow
+                else if (listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp").any { lower.endsWith(it) }) Color(0xFF64B5F6)
                 else TextSecondary
 
                 Box(
@@ -677,6 +697,33 @@ fun TvFileRow(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!item.isDirectory) {
+                    val lower = item.name.lowercase()
+                    val playIcon = when {
+                        lower.endsWith(".apk") -> Icons.Default.InstallMobile
+                        listOf(".mp4", ".mkv", ".avi", ".mov", ".webm", ".ts", ".wmv", ".flv", ".m4v").any { lower.endsWith(it) } -> Icons.Default.PlayCircle
+                        listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp").any { lower.endsWith(it) } -> Icons.Default.Visibility
+                        else -> Icons.Default.PlayArrow
+                    }
+                    val playTint = when {
+                        lower.endsWith(".apk") -> Color(0xFF00E676)
+                        listOf(".mp4", ".mkv", ".avi", ".mov", ".webm", ".ts", ".wmv", ".flv", ".m4v").any { lower.endsWith(it) } -> Color(0xFFFFB300)
+                        listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp").any { lower.endsWith(it) } -> Color(0xFF64B5F6)
+                        else -> TellyTealGlow
+                    }
+
+                    // Direct One-Click Play on TV Button
+                    IconButton(
+                        onClick = onPlayOnTv,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = playIcon,
+                            contentDescription = "Play on TV",
+                            tint = playTint,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+
                     IconButton(
                         onClick = onDownload,
                         modifier = Modifier.size(32.dp)
@@ -711,10 +758,10 @@ private fun getFileIcon(item: TvFileItem): ImageVector {
     val lower = item.name.lowercase()
     return when {
         lower.endsWith(".apk") -> Icons.Default.Android
-        lower.endsWith(".mp4") || lower.endsWith(".mkv") || lower.endsWith(".avi") -> Icons.Default.Movie
-        lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".flac") -> Icons.Default.MusicNote
-        lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") -> Icons.Default.Image
-        lower.endsWith(".zip") || lower.endsWith(".tar") || lower.endsWith(".gz") -> Icons.Default.FolderZip
+        listOf(".mp4", ".mkv", ".avi", ".mov", ".webm", ".ts", ".wmv", ".flv", ".m4v").any { lower.endsWith(it) } -> Icons.Default.Movie
+        listOf(".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".opus", ".wma").any { lower.endsWith(it) } -> Icons.Default.MusicNote
+        listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp").any { lower.endsWith(it) } -> Icons.Default.Image
+        listOf(".zip", ".tar", ".gz", ".rar", ".7z").any { lower.endsWith(it) } -> Icons.Default.FolderZip
         else -> Icons.Default.InsertDriveFile
     }
 }
