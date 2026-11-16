@@ -249,7 +249,7 @@ fun OverviewScreen(
                 Spacer(Modifier.height(14.dp))
 
                 // Prominent Quick Action Buttons:
-                // [ ✦ Screensaver ]   [ 🛍 Play Store ]   [ ⟳ Reboot ]   [ + TV ]
+                // [ ✦ Screensaver ]   [ 🛍 Store ]   [ ⟳ Reboot ]   [ + TV ]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -289,12 +289,12 @@ fun OverviewScreen(
                             }
                         }
 
-                        // 2. TV Play Store Pill (Direct One-Click Launch)
+                        // 2. TV Store Pill (Direct One-Click Launch)
                         Surface(
                             onClick = {
                                 scope.launch {
                                     val ok = adbManager.openPlayStoreOnTv()
-                                    Toast.makeText(context, if (ok) "Opening TV Play Store..." else "Failed to open Play Store", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, if (ok) "Opening TV Store..." else "Failed to open Store", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             shape = RoundedCornerShape(20.dp),
@@ -303,18 +303,18 @@ fun OverviewScreen(
                             modifier = Modifier.height(36.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ShoppingBag,
-                                    contentDescription = "Play Store",
+                                    contentDescription = "Store",
                                     tint = Color(0xFF00E676),
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    text = "Play Store",
+                                    text = "Store",
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TellyOnSurface
@@ -350,30 +350,30 @@ fun OverviewScreen(
                             }
                         }
 
-                        // 4. + TV Pill
+                        // 4. + TV Pill (Bigger & More Appealing with Glow Accent)
                         Surface(
                             onClick = onAddDevice,
                             shape = RoundedCornerShape(20.dp),
-                            color = TellySurfaceContainerHigh,
-                            border = BorderStroke(1.dp, TellyOutlineSubtle),
+                            color = TellyTealDark.copy(alpha = 0.45f),
+                            border = BorderStroke(1.dp, TellyTealPrimary.copy(alpha = 0.7f)),
                             modifier = Modifier.height(36.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Add,
                                     contentDescription = "Add TV",
-                                    tint = TellyOnSurfaceVariant,
-                                    modifier = Modifier.size(15.dp)
+                                    tint = TellyTealGlow,
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(Modifier.width(3.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = "TV",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TellyOnSurfaceVariant
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TellyTealGlow
                                 )
                             }
                         }
@@ -1043,7 +1043,7 @@ fun OverviewScreen(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    QuickLaunchPill("Play Store", "com.android.vending", Color(0xFF00E676), Color.Black) {
+                    QuickLaunchPill("Store", "com.android.vending", Color(0xFF00E676), Color.Black) {
                         scope.launch {
                             val ok = adbManager.openPlayStoreOnTv()
                             Toast.makeText(context, if (ok) "Opening TV Play Store..." else "Failed to open Play Store", Toast.LENGTH_SHORT).show()
