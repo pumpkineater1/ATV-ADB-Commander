@@ -221,14 +221,14 @@ fun MonitorScreen(
                 ) {
                     val sections = listOf(
                         Triple(0, "Stats", Icons.Default.Speed),
-                        Triple(1, "Apps (${installedApps.size})", Icons.Default.Apps),
+                        Triple(1, "Apps", Icons.Default.Apps),
                         Triple(2, "Backup", Icons.Default.Backup)
                     )
 
                     sections.forEach { (index, title, icon) ->
                         val isSelected = selectedSection == index
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             color = if (isSelected) DarkSurfaceVariant else Color.Transparent,
                             border = if (isSelected) BorderStroke(1.dp, CyberCyan.copy(alpha = 0.5f)) else null,
                             modifier = Modifier.clickable {
@@ -237,19 +237,19 @@ fun MonitorScreen(
                             }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = null,
                                     tint = if (isSelected) CyberCyan else TextMuted,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.width(5.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = title,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isSelected) TextPrimary else TextSecondary
                                 )
@@ -259,34 +259,42 @@ fun MonitorScreen(
                 }
             }
 
-            // Refresh & Auto-Refresh Controls
+            // Refresh & Auto-Refresh Controls (Always visible across all tabs)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (selectedSection == 0) {
-                    IconButton(
-                        onClick = { isAutoRefresh = !isAutoRefresh },
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(if (isAutoRefresh) CyberCyan.copy(alpha = 0.15f) else DarkSurfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = if (isAutoRefresh) Icons.Default.Sync else Icons.Default.SyncDisabled,
-                            contentDescription = "Auto Refresh",
-                            tint = if (isAutoRefresh) CyberCyan else TextSecondary,
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(if (isAutoRefresh) CyberCyan.copy(alpha = 0.18f) else DarkSurfaceVariant)
+                        .clickable {
+                            isAutoRefresh = !isAutoRefresh
+                            if (isAutoRefresh) {
+                                Toast.makeText(context, "Live auto-refresh enabled (every 3s)", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Auto-refresh paused", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isAutoRefresh) Icons.Default.Sync else Icons.Default.SyncDisabled,
+                        contentDescription = "Auto Refresh",
+                        tint = if (isAutoRefresh) CyberCyan else TextSecondary,
+                        modifier = Modifier.size(17.dp)
+                    )
                 }
 
-                IconButton(
-                    onClick = {
-                        if (selectedSection == 0) refreshStats() else refreshApps()
-                    },
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Box(
                     modifier = Modifier
                         .size(34.dp)
                         .clip(CircleShape)
                         .background(DarkSurfaceVariant)
+                        .clickable {
+                            if (selectedSection == 0) refreshStats() else refreshApps()
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
                     if (isLoadingStats) {
                         CircularProgressIndicator(
