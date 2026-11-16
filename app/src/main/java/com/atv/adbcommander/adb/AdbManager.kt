@@ -2652,7 +2652,7 @@ class AdbManager(private val context: Context) {
 
     suspend fun startScreensaver(): String = withContext(Dispatchers.IO) {
         try {
-            runShell("cmd dream")
+            runShell("service call dreams 1")
             "Screensaver started"
         } catch (e: Exception) {
             try {

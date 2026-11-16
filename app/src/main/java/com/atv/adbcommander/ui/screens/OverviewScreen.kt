@@ -76,6 +76,7 @@ fun OverviewScreen(
     var selectedSendDestination by remember { mutableStateOf("/sdcard/Download") }
     var showSendDestinationDialog by remember { mutableStateOf(false) }
     var availableMounts by remember { mutableStateOf<List<TvStorageMount>>(emptyList()) }
+    var showRebootDialog by remember { mutableStateOf(false) }
 
     // APK File Picker for "+ Install app"
     val apkPickerLauncher = rememberLauncherForActivityResult(
@@ -207,15 +208,84 @@ fun OverviewScreen(
                     .padding(top = 8.dp, bottom = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Petaled TV Cookie Badge
-                TellyTvCookie(
-                    size = 72.dp,
-                    icon = Icons.Default.Tv,
-                    tint = TellyTealGlow,
-                    containerColor = TellyTealDark
-                )
+                // Aesthetic Quick Actions in place of the decorative TV Cookie:
+                // [ ✦ Screensaver ]   [ ⟳ Reboot ]
+                Row(
+                    modifier = Modifier.padding(bottom = 14.dp, top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Start Screensaver Button
+                    Surface(
+                        onClick = {
+                            if (isConnected) {
+                                scope.launch {
+                                    val res = adbManager.startScreensaver()
+                                    Toast.makeText(context, res, Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                Toast.makeText(context, "Connect to TV first", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        color = TellySurfaceContainerHigh,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "Screensaver",
+                                tint = TellyTealPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Screensaver",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TellyOnSurface
+                            )
+                        }
+                    }
 
-                Spacer(Modifier.height(14.dp))
+                    // Reboot TV Button
+                    Surface(
+                        onClick = {
+                            if (isConnected) {
+                                showRebootDialog = true
+                            } else {
+                                Toast.makeText(context, "Connect to TV first", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        color = TellySurfaceContainerHigh,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.RestartAlt,
+                                contentDescription = "Reboot",
+                                tint = Color(0xFFFFB74D),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Reboot",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TellyOnSurface
+                            )
+                        }
+                    }
+                }
 
                 // TV Model Name
                 Text(
@@ -1205,6 +1275,58 @@ fun OverviewScreen(
                 }
             },
             containerColor = TellySurfaceContainerHigh
+        )
+    }
+
+    if (showRebootDialog) {
+        AlertDialog(
+            onDismissRequest = { showRebootDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.RestartAlt,
+                        contentDescription = null,
+                        tint = Color(0xFFFFB74D),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "Reboot Android TV?",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TellyOnSurface
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to restart ${if (deviceModel.isNotEmpty()) deviceModel else "your TV"}?",
+                    fontSize = 13.sp,
+                    color = TellyOnSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRebootDialog = false
+                        scope.launch {
+                            val msg = adbManager.reboot("normal")
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB74D), contentColor = Color.Black),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Reboot TV", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRebootDialog = false }) {
+                    Text("Cancel", color = TellyOnSurfaceVariant)
+                }
+            },
+            containerColor = TellySurfaceContainerHigh,
+            shape = RoundedCornerShape(18.dp)
         )
     }
 }
