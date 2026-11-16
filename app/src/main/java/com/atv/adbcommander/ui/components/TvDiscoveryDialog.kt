@@ -179,7 +179,10 @@ fun TvDiscoveryDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Box(
                                             modifier = Modifier
                                                 .size(34.dp)
@@ -202,12 +205,15 @@ fun TvDiscoveryDialog(
                                                 text = device.name,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = TextPrimary
+                                                color = TextPrimary,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
                                             Text(
                                                 text = "${device.ip}:${device.port}",
                                                 fontSize = 11.sp,
-                                                color = TextSecondary
+                                                color = TextSecondary,
+                                                maxLines = 1
                                             )
                                         }
                                     }
@@ -221,7 +227,7 @@ fun TvDiscoveryDialog(
                                         shape = RoundedCornerShape(10.dp),
                                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                                     ) {
-                                        Text("Connect", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("Connect", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                                     }
                                 }
                             }

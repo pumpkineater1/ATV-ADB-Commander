@@ -179,10 +179,13 @@ fun TvBackupScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(PrimaryBlue.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
@@ -191,22 +194,25 @@ fun TvBackupScreen(
                                 imageVector = Icons.Default.Backup,
                                 contentDescription = "Backup",
                                 tint = CyberCyan,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "TV SNAPSHOT & RESTORE",
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                                color = TextPrimary
+                                letterSpacing = 0.8.sp,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Extract APKs & settings directly to phone",
-                                fontSize = 11.sp,
-                                color = TextSecondary
+                                text = "Extract APKs & settings directly",
+                                fontSize = 10.sp,
+                                color = TextSecondary,
+                                maxLines = 1
                             )
                         }
                     }
@@ -216,11 +222,11 @@ fun TvBackupScreen(
                         enabled = isConnected && !backupProgress.isRunning,
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                         shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "Create", modifier = Modifier.size(16.dp))
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "Create", modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("New Backup", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("New Backup", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 }
 

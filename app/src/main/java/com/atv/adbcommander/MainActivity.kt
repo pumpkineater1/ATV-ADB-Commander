@@ -5,9 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -80,7 +78,6 @@ class MainActivity : ComponentActivity() {
                 var showBackupScreen by remember { mutableStateOf(false) }
                 var showLauncherScreen by remember { mutableStateOf(false) }
                 var showConnectDialog by remember { mutableStateOf(false) }
-                var showOverflowMenu by remember { mutableStateOf(false) }
 
                 // Keep screen awake while a backup or restore is actively in progress
                 DisposableEffect(backupProgress.isRunning) {
@@ -127,7 +124,18 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                         containerColor = TellyDarkBackground,
                         topBar = {
-                            // Minimalist Top Bar with device indicator and 3-dot overflow
+                            // Minimalist Top Bar with pulsing status indicator
+                            val infiniteTransition = rememberInfiniteTransition(label = "pulse_top")
+                            val pulseAlpha by infiniteTransition.animateFloat(
+                                initialValue = 0.4f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = androidx.compose.animation.core.tween(1200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                                ),
+                                label = "dot_pulse"
+                            )
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -145,7 +153,7 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier
                                             .size(8.dp)
                                             .clip(CircleShape)
-                                            .background(if (isConnected) TellySuccess else TellyError)
+                                            .background((if (isConnected) TellySuccess else TellyError).copy(alpha = if (isConnected) pulseAlpha else 1f))
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
@@ -155,69 +163,22 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
 
-                                // Right Actions: Terminal icon + 3-dot Overflow Menu
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(onClick = { showShellScreen = true }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Terminal,
-                                            contentDescription = "Terminal",
-                                            tint = TellyTealPrimary
-                                        )
-                                    }
-
-                                    Box {
-                                        IconButton(onClick = { showOverflowMenu = true }) {
-                                            Icon(
-                                                imageVector = Icons.Default.MoreVert,
-                                                contentDescription = "Menu",
-                                                tint = TellyOnSurface
-                                            )
-                                        }
-
-                                        DropdownMenu(
-                                            expanded = showOverflowMenu,
-                                            onDismissRequest = { showOverflowMenu = false },
-                                            modifier = Modifier.background(TellySurfaceContainerHigh)
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text("Advanced Monitor", color = TellyOnSurface) },
-                                                leadingIcon = { Icon(Icons.Default.Analytics, contentDescription = null, tint = TellyTealPrimary) },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    showAdvancedScreen = true
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Shell Terminal", color = TellyOnSurface) },
-                                                leadingIcon = { Icon(Icons.Default.Terminal, contentDescription = null, tint = TellyTealPrimary) },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    showShellScreen = true
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Backup & Restore", color = TellyOnSurface) },
-                                                leadingIcon = { Icon(Icons.Default.SettingsBackupRestore, contentDescription = null, tint = TellyTealPrimary) },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    showBackupScreen = true
-                                                }
-                                            )
-                                            HorizontalDivider(color = TellyOutlineSubtle)
-                                            DropdownMenuItem(
-                                                text = { Text(if (isConnected) "Disconnect" else "Connect Device", color = if (isConnected) TellyError else TellyTealPrimary) },
-                                                leadingIcon = { Icon(if (isConnected) Icons.Default.PowerSettingsNew else Icons.Default.Add, contentDescription = null, tint = if (isConnected) TellyError else TellyTealPrimary) },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    if (isConnected) {
-                                                        coroutineScope.launch { adbManager.disconnect() }
-                                                    } else {
-                                                        showConnectDialog = true
-                                                    }
-                                                }
-                                            )
+                                // Right Action: Clean Power/Disconnect/Connect icon
+                                IconButton(
+                                    onClick = {
+                                        if (isConnected) {
+                                            coroutineScope.launch { adbManager.disconnect() }
+                                        } else {
+                                            showConnectDialog = true
                                         }
                                     }
+                                ) {
+                                    Icon(
+                                        imageVector = if (isConnected) Icons.Default.PowerSettingsNew else Icons.Default.Add,
+                                        contentDescription = if (isConnected) "Disconnect" else "Connect",
+                                        tint = if (isConnected) TellyOnSurfaceVariant else TellyTealPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
                         },
@@ -298,32 +259,48 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(innerPadding)
                         ) {
-                            when (currentTab) {
-                                MainTab.OVERVIEW -> OverviewScreen(
-                                    adbManager = adbManager,
-                                    onNavigateToApps = { currentTab = MainTab.APPS },
-                                    onNavigateToFiles = { currentTab = MainTab.FILES },
-                                    onNavigateToTweaks = { currentTab = MainTab.TWEAKS },
-                                    onOpenRemote = { showRemoteSheet = true },
-                                    onOpenAdvanced = { showAdvancedScreen = true },
-                                    onOpenShell = { showShellScreen = true },
-                                    onOpenBackup = { showBackupScreen = true },
-                                    onAddDevice = { showConnectDialog = true },
-                                    onOpenLaunchers = { showLauncherScreen = true }
-                                )
-                                MainTab.APPS -> MonitorScreen(
-                                    adbManager = adbManager,
-                                    isConnected = isConnected
-                                )
-                                MainTab.FILES -> TvFileExplorerScreen(
-                                    adbManager = adbManager,
-                                    isConnected = isConnected
-                                )
-                                MainTab.TWEAKS -> TweaksScreen(
-                                    adbManager = adbManager,
-                                    isConnected = isConnected,
-                                    onOpenLaunchers = { showLauncherScreen = true }
-                                )
+                            AnimatedContent(
+                                targetState = currentTab,
+                                transitionSpec = {
+                                    if (targetState.ordinal > initialState.ordinal) {
+                                        (slideInHorizontally { width -> width / 4 } + fadeIn()).togetherWith(
+                                            slideOutHorizontally { width -> -width / 4 } + fadeOut()
+                                        )
+                                    } else {
+                                        (slideInHorizontally { width -> -width / 4 } + fadeIn()).togetherWith(
+                                            slideOutHorizontally { width -> width / 4 } + fadeOut()
+                                        )
+                                    }
+                                },
+                                label = "tab_animation"
+                            ) { tab ->
+                                when (tab) {
+                                    MainTab.OVERVIEW -> OverviewScreen(
+                                        adbManager = adbManager,
+                                        onNavigateToApps = { currentTab = MainTab.APPS },
+                                        onNavigateToFiles = { currentTab = MainTab.FILES },
+                                        onNavigateToTweaks = { currentTab = MainTab.TWEAKS },
+                                        onOpenRemote = { showRemoteSheet = true },
+                                        onOpenAdvanced = { showAdvancedScreen = true },
+                                        onOpenShell = { showShellScreen = true },
+                                        onOpenBackup = { showBackupScreen = true },
+                                        onAddDevice = { showConnectDialog = true },
+                                        onOpenLaunchers = { showLauncherScreen = true }
+                                    )
+                                    MainTab.APPS -> MonitorScreen(
+                                        adbManager = adbManager,
+                                        isConnected = isConnected
+                                    )
+                                    MainTab.FILES -> TvFileExplorerScreen(
+                                        adbManager = adbManager,
+                                        isConnected = isConnected
+                                    )
+                                    MainTab.TWEAKS -> TweaksScreen(
+                                        adbManager = adbManager,
+                                        isConnected = isConnected,
+                                        onOpenLaunchers = { showLauncherScreen = true }
+                                    )
+                                }
                             }
                         }
                     }

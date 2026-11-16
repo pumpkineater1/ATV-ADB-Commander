@@ -429,6 +429,217 @@ fun OverviewScreen(
         }
 
         // ==========================================
+        // 2.5. Core Power Tools (Advanced Monitor, Shell Terminal, Backup & Restore)
+        // ==========================================
+        item {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "CORE TV TOOLS",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    ),
+                    color = TellyOnSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // 1. Advanced Monitor Tool
+                    Surface(
+                        onClick = onOpenAdvanced,
+                        shape = RoundedCornerShape(16.dp),
+                        color = TellySurfaceContainer,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(86.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(TellyTealPrimary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Analytics,
+                                        contentDescription = "Monitor",
+                                        tint = TellyTealPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = TellySuccess.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "LIVE",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TellySuccess,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = "Monitor",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TellyOnSurface
+                                )
+                                Text(
+                                    text = "CPU & Net",
+                                    fontSize = 10.sp,
+                                    color = TellyOnSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // 2. Shell Terminal Tool
+                    Surface(
+                        onClick = onOpenShell,
+                        shape = RoundedCornerShape(16.dp),
+                        color = TellySurfaceContainer,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(86.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF64B5F6).copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Terminal,
+                                        contentDescription = "Shell",
+                                        tint = Color(0xFF64B5F6),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFF64B5F6).copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "CLI",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF64B5F6),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = "Terminal",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TellyOnSurface
+                                )
+                                Text(
+                                    text = "ADB Wire",
+                                    fontSize = 10.sp,
+                                    color = TellyOnSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. Backup & Restore Tool
+                    Surface(
+                        onClick = onOpenBackup,
+                        shape = RoundedCornerShape(16.dp),
+                        color = TellySurfaceContainer,
+                        border = BorderStroke(1.dp, TellyOutlineSubtle),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(86.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFFFB74D).copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SettingsBackupRestore,
+                                        contentDescription = "Backup",
+                                        tint = Color(0xFFFFB74D),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFFFB74D).copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "APK",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFFB74D),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = "Backup",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TellyOnSurface
+                                )
+                                Text(
+                                    text = "Snapshot",
+                                    fontSize = 10.sp,
+                                    color = TellyOnSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
         // 3. Three Big Rounded Action Cards (Exact match to tv-page.png)
         // ==========================================
         item {
