@@ -202,16 +202,16 @@ fun MonitorScreen(
             }
         }
 
-        // Futuristic Section Tabs & Telemetry Controls
+        // Section Tabs & Telemetry Controls
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 10.dp),
+                .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(20.dp),
                 color = DarkCard,
                 border = BorderStroke(1.dp, BorderSubtle)
             ) {
@@ -228,29 +228,29 @@ fun MonitorScreen(
                     sections.forEach { (index, title, icon) ->
                         val isSelected = selectedSection == index
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = if (isSelected) DarkSurfaceVariant else Color.Transparent,
-                            border = if (isSelected) BorderStroke(1.dp, CyberCyan.copy(alpha = 0.4f)) else null,
+                            border = if (isSelected) BorderStroke(1.dp, CyberCyan.copy(alpha = 0.5f)) else null,
                             modifier = Modifier.clickable {
                                 selectedSection = index
                                 if (index == 1 && installedApps.isEmpty()) refreshApps()
                             }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = null,
                                     tint = if (isSelected) CyberCyan else TextMuted,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Text(
                                     text = title,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isSelected) TextPrimary else TextSecondary
                                 )
                             }
@@ -265,7 +265,7 @@ fun MonitorScreen(
                     IconButton(
                         onClick = { isAutoRefresh = !isAutoRefresh },
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(if (isAutoRefresh) CyberCyan.copy(alpha = 0.15f) else DarkSurfaceVariant)
                     ) {
@@ -284,7 +284,7 @@ fun MonitorScreen(
                         if (selectedSection == 0) refreshStats() else refreshApps()
                     },
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
                         .background(DarkSurfaceVariant)
                 ) {
