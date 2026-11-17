@@ -27,7 +27,7 @@ class AdbConnection(
 
     companion object {
         private const val TAG = "AdbConnection"
-        private const val CONNECT_TIMEOUT_MS = 5000
+        private const val CONNECT_TIMEOUT_MS = 3000
     }
 
     private var socket: Socket? = null
@@ -66,8 +66,8 @@ class AdbConnection(
         s.trafficClass = 0x10 // IPTOS_LOWDELAY: prioritize minimum latency across IP stack
         s.tcpNoDelay = true
         s.keepAlive = true
-        s.sendBufferSize = 64 * 1024
-        s.receiveBufferSize = 64 * 1024
+        s.sendBufferSize = 128 * 1024
+        s.receiveBufferSize = 128 * 1024
         s.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
         socket = s
         inputStream = s.getInputStream()

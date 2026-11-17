@@ -46,17 +46,17 @@ class AdbSync(private val connection: AdbConnection) {
             sendHeader.put(pathBytes)
             stream.write(sendHeader.array())
 
-            // 2. Stream DATA chunks
-            val buffer = ByteArray(CHUNK_SIZE)
+            // 2. Stream DATA chunks with pre-allocated zero-allocation buffer
+            val chunkBuffer = ByteArray(8 + CHUNK_SIZE)
+            val headerBuffer = ByteBuffer.wrap(chunkBuffer).order(ByteOrder.LITTLE_ENDIAN)
             var bytesRead: Int
             var totalSent = 0L
 
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                val dataHeader = ByteBuffer.allocate(8 + bytesRead).order(ByteOrder.LITTLE_ENDIAN)
-                dataHeader.putInt(ID_DATA)
-                dataHeader.putInt(bytesRead)
-                dataHeader.put(buffer, 0, bytesRead)
-                stream.write(dataHeader.array())
+            while (inputStream.read(chunkBuffer, 8, CHUNK_SIZE).also { bytesRead = it } != -1) {
+                headerBuffer.position(0)
+                headerBuffer.putInt(ID_DATA)
+                headerBuffer.putInt(bytesRead)
+                stream.write(chunkBuffer, 0, 8 + bytesRead)
 
                 totalSent += bytesRead
                 onProgress?.invoke(totalSent, totalBytes)

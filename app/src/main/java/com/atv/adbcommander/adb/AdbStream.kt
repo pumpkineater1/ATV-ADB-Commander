@@ -123,14 +123,15 @@ class AdbStream(
      * Writes data payload to the stream.
      */
     @Throws(IOException::class, InterruptedException::class)
-    fun write(data: ByteArray) {
+    fun write(data: ByteArray, off: Int, len: Int) {
         if (isClosed.get()) throw IOException("Stream is closed")
 
-        var offset = 0
+        var offset = off
+        val end = off + len
         val maxChunk = connection.maxData
 
-        while (offset < data.size) {
-            val chunkSize = minOf(maxChunk, data.size - offset)
+        while (offset < end) {
+            val chunkSize = minOf(maxChunk, end - offset)
             val chunk = ByteArray(chunkSize)
             System.arraycopy(data, offset, chunk, 0, chunkSize)
 
@@ -144,6 +145,11 @@ class AdbStream(
 
             offset += chunkSize
         }
+    }
+
+    @Throws(IOException::class, InterruptedException::class)
+    fun write(data: ByteArray) {
+        write(data, 0, data.size)
     }
 
     override fun close() {

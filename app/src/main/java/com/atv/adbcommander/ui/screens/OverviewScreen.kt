@@ -36,6 +36,8 @@ import com.atv.adbcommander.model.*
 import com.atv.adbcommander.ui.components.*
 import com.atv.adbcommander.ui.theme.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -57,6 +59,7 @@ fun OverviewScreen(
     val scope = rememberCoroutineScope()
     val connectionState by adbManager.connectionState.collectAsState()
     val isConnected = connectionState is ConnectionState.Connected
+    val isTvSleeping by adbManager.isTvSleeping.collectAsState()
     val backupProgress by adbManager.backupProgress.collectAsState()
     val installedApps by adbManager.installedApps.collectAsState()
     val disabledCount = remember(installedApps) { installedApps.count { !it.isEnabled } }
@@ -84,8 +87,10 @@ fun OverviewScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                Toast.makeText(context, "Streaming APK to TV...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Preparing APK install on TV...", Toast.LENGTH_SHORT).show()
                 try {
+                    adbManager.ensureConnected()
+                    adbManager.wakeTv()
                     val stream = context.contentResolver.openInputStream(uri)
                     if (stream != null) {
                         val cursor = context.contentResolver.query(uri, null, null, null, null)
@@ -101,7 +106,7 @@ fun OverviewScreen(
                         }
                         adbManager.installApk(stream, size, name).collect { prog ->
                             if (prog.isDone) {
-                                Toast.makeText(context, "Installed $name!", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Installed $name successfully!", Toast.LENGTH_LONG).show()
                             } else if (prog.error != null) {
                                 Toast.makeText(context, "Install failed: ${prog.error}", Toast.LENGTH_SHORT).show()
                             }
@@ -187,7 +192,10 @@ fun OverviewScreen(
 
     LaunchedEffect(isConnected) {
         if (isConnected) {
-            refreshData()
+            while (isActive && isConnected) {
+                refreshData()
+                delay(7000L)
+            }
         }
     }
 
@@ -229,14 +237,47 @@ fun OverviewScreen(
 
                 Spacer(Modifier.height(8.dp))
 
-                // TV Status Chip ("Running fine")
+                // TV Status Chip ("Running fine" or "TV Asleep • Tap to Wake Up")
                 if (isConnected) {
-                    TellyStatusChip(
-                        text = "Running fine",
-                        icon = Icons.Default.CheckCircle,
-                        color = TellySuccess,
-                        containerColor = TellySuccessContainer
-                    )
+                    if (isTvSleeping) {
+                        Surface(
+                            onClick = {
+                                scope.launch {
+                                    adbManager.wakeTv()
+                                    Toast.makeText(context, "Waking up TV...", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF332000),
+                            border = BorderStroke(1.dp, Color(0xFFFFB300).copy(alpha = 0.6f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NightlightRound,
+                                    contentDescription = "TV Asleep",
+                                    tint = Color(0xFFFFB300),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    text = "TV Asleep • Tap to Wake Up",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFFFD54F)
+                                )
+                            }
+                        }
+                    } else {
+                        TellyStatusChip(
+                            text = "Running fine",
+                            icon = Icons.Default.CheckCircle,
+                            color = TellySuccess,
+                            containerColor = TellySuccessContainer
+                        )
+                    }
                 } else {
                     TellyStatusChip(
                         text = "Offline",
@@ -249,43 +290,78 @@ fun OverviewScreen(
                 Spacer(Modifier.height(14.dp))
 
                 // Prominent Quick Action Buttons:
-                // [ ✦ Screensaver ]   [ 🛍 Store ]   [ ⟳ Reboot ]   [ + TV ]
+                // [ ✦ Screensaver / ⚡ Wake Up ]   [ 🛍 Store ]   [ ⟳ Reboot ]   [ + TV ]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isConnected) {
-                        // 1. Screensaver Pill
-                        Surface(
-                            onClick = {
-                                scope.launch {
-                                    val res = adbManager.startScreensaver()
-                                    Toast.makeText(context, res, Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            shape = RoundedCornerShape(20.dp),
-                            color = TellySurfaceContainerHigh,
-                            border = BorderStroke(1.dp, TellyOutlineSubtle),
-                            modifier = Modifier.height(36.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        if (isTvSleeping) {
+                            // 1. Prominent Wake Up Button (when TV is in sleep mode)
+                            Surface(
+                                onClick = {
+                                    scope.launch {
+                                        adbManager.wakeTv()
+                                        Toast.makeText(context, "Waking up TV...", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color(0xFF332000),
+                                border = BorderStroke(1.dp, Color(0xFFFFB300)),
+                                modifier = Modifier.height(36.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "Screensaver",
-                                    tint = TellyTealPrimary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    text = "Screensaver",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TellyOnSurface
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Bolt,
+                                        contentDescription = "Wake Up",
+                                        tint = Color(0xFFFFB300),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = "Wake Up",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFFD54F)
+                                    )
+                                }
+                            }
+                        } else {
+                            // 1. Screensaver Pill
+                            Surface(
+                                onClick = {
+                                    scope.launch {
+                                        val res = adbManager.startScreensaver()
+                                        Toast.makeText(context, res, Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                color = TellySurfaceContainerHigh,
+                                border = BorderStroke(1.dp, TellyOutlineSubtle),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "Screensaver",
+                                        tint = TellyTealPrimary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = "Screensaver",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TellyOnSurface
+                                    )
+                                }
                             }
                         }
 
@@ -756,7 +832,14 @@ fun OverviewScreen(
                         .weight(1f)
                         .height(106.dp)
                         .clickable {
-                            apkPickerLauncher.launch(arrayOf("application/vnd.android.package-archive", "*/*"))
+                            scope.launch {
+                                try {
+                                    adbManager.ensureConnected()
+                                    apkPickerLauncher.launch(arrayOf("application/vnd.android.package-archive", "*/*"))
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "TV not connected: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                 ) {
                     Column(

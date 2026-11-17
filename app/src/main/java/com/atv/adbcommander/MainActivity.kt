@@ -175,22 +175,59 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
 
-                                // Right Action: Clean Power/Disconnect/Connect icon
-                                IconButton(
-                                    onClick = {
-                                        if (isConnected) {
-                                            coroutineScope.launch { adbManager.disconnect() }
-                                        } else {
-                                            showConnectDialog = true
+                                // Right Action: Clean Power/Disconnect/Connect icon + Wake TV pill
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val isTvSleeping by adbManager.isTvSleeping.collectAsState()
+                                    if (isConnected && isTvSleeping) {
+                                        Surface(
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    adbManager.wakeTv()
+                                                    android.widget.Toast.makeText(this@MainActivity, "Waking up TV...", android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = Color(0xFF332000),
+                                            border = BorderStroke(1.dp, Color(0xFFFFB300)),
+                                            modifier = Modifier.padding(end = 4.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Bolt,
+                                                    contentDescription = "Wake TV",
+                                                    tint = Color(0xFFFFB300),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(2.dp))
+                                                Text(
+                                                    text = "Wake TV",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFFFD54F)
+                                                )
+                                            }
                                         }
                                     }
-                                ) {
-                                    Icon(
-                                        imageVector = if (isConnected) Icons.Default.PowerSettingsNew else Icons.Default.Add,
-                                        contentDescription = if (isConnected) "Disconnect" else "Connect",
-                                        tint = if (isConnected) TellyOnSurfaceVariant else TellyTealPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+
+                                    IconButton(
+                                        onClick = {
+                                            if (isConnected) {
+                                                coroutineScope.launch { adbManager.disconnect() }
+                                            } else {
+                                                showConnectDialog = true
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isConnected) Icons.Default.PowerSettingsNew else Icons.Default.Add,
+                                            contentDescription = if (isConnected) "Disconnect" else "Connect",
+                                            tint = if (isConnected) TellyOnSurfaceVariant else TellyTealPrimary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         },

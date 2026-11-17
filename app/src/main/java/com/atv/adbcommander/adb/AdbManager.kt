@@ -85,6 +85,9 @@ class AdbManager(private val context: Context) {
     private val _sleepTimerState = MutableStateFlow(SleepTimerState())
     val sleepTimerState: StateFlow<SleepTimerState> = _sleepTimerState
 
+    private val _isTvSleeping = MutableStateFlow(false)
+    val isTvSleeping: StateFlow<Boolean> = _isTvSleeping.asStateFlow()
+
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _backupProgress = MutableStateFlow(BackupProgress())
@@ -310,11 +313,11 @@ class AdbManager(private val context: Context) {
         heartbeatJob?.cancel()
         heartbeatJob = managerScope.launch(Dispatchers.IO) {
             while (isActive && isConnected() && !isUserDisconnecting) {
-                kotlinx.coroutines.delay(12000L) // Lightweight ping every 12 seconds keeps TCP alive and detects drops
-                if (!isConnected() || isUserDisconnecting) break
                 try {
-                    // Shell built-in ":" executes instantaneously with no process spawn
-                    runShell(":")
+                    // Check TV sleep/wakefulness and keep TCP socket warm
+                    val p = runShell("dumpsys power 2>/dev/null | grep -i mWakefulness=")
+                    val isSleeping = p.contains("Dozing", ignoreCase = true) || p.contains("Asleep", ignoreCase = true)
+                    _isTvSleeping.value = isSleeping
                 } catch (e: Exception) {
                     if (!isUserDisconnecting) {
                         Log.w(TAG, "ADB Heartbeat watchdog detected drop: ${e.message}")
@@ -322,6 +325,7 @@ class AdbManager(private val context: Context) {
                         break
                     }
                 }
+                kotlinx.coroutines.delay(6000L) // Lightweight check every 6 seconds
             }
         }
     }
@@ -420,11 +424,64 @@ class AdbManager(private val context: Context) {
     private val shellMutex = kotlinx.coroutines.sync.Mutex()
 
     /**
+     * Ensures an active ADB connection is ready.
+     * If disconnected or socket was dropped, automatically and seamlessly reconnects to the last known TV.
+     */
+    suspend fun ensureConnected(): AdbConnection = withContext(Dispatchers.IO) {
+        val current = activeConnection
+        if (current != null && current.isConnectionOpen()) {
+            return@withContext current
+        }
+
+        connectMutex.withLock {
+            val doubleCheck = activeConnection
+            if (doubleCheck != null && doubleCheck.isConnectionOpen()) {
+                return@withLock doubleCheck
+            }
+
+            val lastIp = prefs.getString("last_connected_ip", null)
+            val lastPort = prefs.getInt("last_connected_port", 5555)
+
+            if (!lastIp.isNullOrBlank() && !isUserDisconnecting) {
+                Log.i(TAG, "ensureConnected: auto-reconnecting to $lastIp:$lastPort")
+                _connectionState.value = ConnectionState.Connecting("Connecting to $lastIp:$lastPort...")
+                try {
+                    val conn = AdbConnection(
+                        host = lastIp,
+                        port = lastPort,
+                        crypto = crypto ?: AdbCrypto.loadOrGenerate(context),
+                        onAuthPromptListener = {
+                            _connectionState.value = ConnectionState.Authenticating(
+                                "Please accept ADB prompt on TV screen"
+                            )
+                        },
+                        onDisconnectListener = { error ->
+                            handleUnexpectedDisconnect(lastIp, lastPort, error)
+                        }
+                    )
+                    conn.connect()
+                    activeConnection = conn
+                    _connectionState.value = ConnectionState.Connected(lastIp, lastPort)
+                    acquireWakeAndWifiLocks("AdbActive")
+                    startHeartbeatWatchdog(lastIp, lastPort)
+                    return@withLock conn
+                } catch (e: Exception) {
+                    Log.w(TAG, "ensureConnected failed: ${e.message}")
+                    _connectionState.value = ConnectionState.Error("TV unreachable: ${e.message}")
+                }
+            }
+
+            throw IllegalStateException("TV not connected. Please connect to TV first.")
+        }
+    }
+
+    /**
      * Executes an ADB shell command and returns the output.
+     * Automatically ensures active connection.
      */
     suspend fun runShell(command: String): String = shellMutex.withLock {
         withContext(Dispatchers.IO) {
-            val conn = activeConnection ?: throw IllegalStateException("ADB not connected")
+            val conn = ensureConnected()
             val stream = conn.openStream("shell:$command")
             try {
                 stream.readString()
@@ -535,7 +592,7 @@ class AdbManager(private val context: Context) {
         totalBytes: Long,
         fileName: String
     ): Flow<TransferProgress> = channelFlow {
-        val conn = activeConnection ?: throw IllegalStateException("ADB not connected")
+        val conn = ensureConnected()
         val sync = AdbSync(conn)
 
         var lastTime = System.currentTimeMillis()
@@ -612,7 +669,11 @@ class AdbManager(private val context: Context) {
         totalBytes: Long,
         fileName: String
     ): Flow<TransferProgress> = channelFlow {
-        val conn = activeConnection ?: throw IllegalStateException("ADB not connected")
+        val conn = ensureConnected()
+        try {
+            // Wake TV display if sleeping so package manager doesn't stall
+            wakeTv()
+        } catch (ignored: Exception) {}
         val sync = AdbSync(conn)
         val remoteTempApk = "/data/local/tmp/atv_temp_${System.currentTimeMillis()}.apk"
 
@@ -1230,7 +1291,7 @@ class AdbManager(private val context: Context) {
 
     suspend fun fetchOverviewTelemetry(): OverviewTelemetry = withContext(Dispatchers.IO) {
         try {
-            val cmd = "echo '===PROPS==='; getprop ro.product.model; getprop ro.product.brand; getprop ro.build.version.release; getprop ro.build.version.security_patch; echo '===STORAGE==='; df -h /data /sdcard 2>/dev/null; echo '===MEM==='; cat /proc/meminfo 2>/dev/null | head -n 6; echo '===CPU==='; head -n 1 /proc/stat"
+            val cmd = "echo '===PROPS==='; getprop ro.product.model; getprop ro.product.brand; getprop ro.build.version.release; getprop ro.build.version.security_patch; echo '===STORAGE==='; df -h /data /sdcard 2>/dev/null; echo '===MEM==='; cat /proc/meminfo 2>/dev/null | head -n 6; echo '===CPU==='; head -n 1 /proc/stat; echo '===POWER==='; dumpsys power 2>/dev/null | grep -i mWakefulness="
             val out = runShell(cmd)
             parseOverviewTelemetry(out)
         } catch (e: Exception) {
@@ -1248,7 +1309,7 @@ class AdbManager(private val context: Context) {
         var memory = MemoryInfo()
         var cpuPercent = 18
 
-        val sections = raw.split("===PROPS===", "===STORAGE===", "===MEM===", "===CPU===")
+        val sections = raw.split("===PROPS===", "===STORAGE===", "===MEM===", "===CPU===", "===POWER===")
         if (sections.size >= 5) {
             // 1. Props
             val propLines = sections[1].trim().lines().filter { it.isNotBlank() }
@@ -1320,6 +1381,13 @@ class AdbManager(private val context: Context) {
                         cpuPercent = ((active * 100) / total).toInt().coerceIn(5, 95)
                     }
                 }
+            }
+
+            // 5. Power state
+            if (sections.size >= 6) {
+                val powerSection = sections[5]
+                val isSleeping = powerSection.contains("Dozing", ignoreCase = true) || powerSection.contains("Asleep", ignoreCase = true)
+                _isTvSleeping.value = isSleeping
             }
         }
 
@@ -1595,7 +1663,7 @@ class AdbManager(private val context: Context) {
     }
 
     suspend fun pullFile(remotePath: String, outputStream: OutputStream): Boolean = withContext(Dispatchers.IO) {
-        val conn = activeConnection ?: return@withContext false
+        val conn = try { ensureConnected() } catch (e: Exception) { return@withContext false }
         try {
             val sync = AdbSync(conn)
             sync.pull(remotePath, outputStream)
@@ -1624,8 +1692,41 @@ class AdbManager(private val context: Context) {
         }
     }
 
-    suspend fun sleepTv(): Boolean = sendKeyEvent(KEYCODE_SLEEP)
-    suspend fun wakeTv(): Boolean = sendKeyEvent(KEYCODE_WAKEUP)
+    suspend fun sleepTv(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            ensureConnected()
+            sendKeyEvent(223)
+            runShell("cmd input keyevent 223 || input keyevent 223")
+            _isTvSleeping.value = true
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun wakeTv(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            ensureConnected()
+            sendKeyEvent(224)
+            runShell("cmd input keyevent 224 || input keyevent 224")
+            _isTvSleeping.value = false
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun checkTvPowerState(): Boolean = withContext(Dispatchers.IO) {
+        if (!isConnected()) return@withContext false
+        try {
+            val out = runShell("dumpsys power | grep -i mWakefulness=").trim()
+            val isAsleep = out.contains("Dozing", ignoreCase = true) || out.contains("Asleep", ignoreCase = true)
+            _isTvSleeping.value = isAsleep
+            !isAsleep
+        } catch (e: Exception) {
+            true
+        }
+    }
 
     suspend fun getDisplaySettings(): TvDisplaySettings = withContext(Dispatchers.IO) {
         var res = "Unknown"

@@ -68,6 +68,7 @@ fun RemoteScreen(
     var showUrlCasterDialog by remember { mutableStateOf(false) }
     var deviceModel by remember { mutableStateOf("Android TV") }
     var deviceBrand by remember { mutableStateOf("Google TV") }
+    val isTvSleeping by adbManager.isTvSleeping.collectAsState()
 
     val performHaptic = {
         try {
@@ -144,28 +145,51 @@ fun RemoteScreen(
                             color = TellyOnSurface
                         )
                         Text(
-                            text = if (isConnected) "$deviceBrand · Running fine" else "Offline",
+                            text = if (isConnected) {
+                                if (isTvSleeping) "$deviceBrand · Asleep (Tap ⚡ to wake)" else "$deviceBrand · Running fine"
+                            } else "Offline",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (isConnected) TellyTealPrimary else TellyError
+                            color = if (isConnected) {
+                                if (isTvSleeping) Color(0xFFFFB300) else TellyTealPrimary
+                            } else TellyError
                         )
                     }
                 }
 
-                if (onClose != null) {
-                    IconButton(onClick = onClose) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Dedicated Wake Up Button
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                adbManager.wakeTv()
+                                Toast.makeText(context, "Waking up TV...", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = TellyOnSurface
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = "Wake Up TV",
+                            tint = Color(0xFFFFB300),
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                } else {
-                    IconButton(onClick = { sendKey(26) /* Power */ }) {
-                        Icon(
-                            imageVector = Icons.Default.PowerSettingsNew,
-                            contentDescription = "Power",
-                            tint = TellyError
-                        )
+
+                    if (onClose != null) {
+                        IconButton(onClick = onClose) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = TellyOnSurface
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = { sendKey(26) /* Power */ }) {
+                            Icon(
+                                imageVector = Icons.Default.PowerSettingsNew,
+                                contentDescription = "Power",
+                                tint = TellyError
+                            )
+                        }
                     }
                 }
             }

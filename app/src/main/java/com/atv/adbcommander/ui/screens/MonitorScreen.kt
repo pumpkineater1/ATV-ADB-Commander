@@ -228,7 +228,7 @@ fun MonitorScreen(
                     sections.forEach { (index, title, icon) ->
                         val isSelected = selectedSection == index
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = if (isSelected) DarkSurfaceVariant else Color.Transparent,
                             border = if (isSelected) BorderStroke(1.dp, CyberCyan.copy(alpha = 0.5f)) else null,
                             modifier = Modifier.clickable {
@@ -237,19 +237,19 @@ fun MonitorScreen(
                             }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = null,
                                     tint = if (isSelected) CyberCyan else TextMuted,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Text(
                                     text = title,
-                                    fontSize = 11.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isSelected) TextPrimary else TextSecondary
                                 )
@@ -263,7 +263,7 @@ fun MonitorScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(if (isAutoRefresh) CyberCyan.copy(alpha = 0.18f) else DarkSurfaceVariant)
                         .clickable {
@@ -280,7 +280,7 @@ fun MonitorScreen(
                         imageVector = if (isAutoRefresh) Icons.Default.Sync else Icons.Default.SyncDisabled,
                         contentDescription = "Auto Refresh",
                         tint = if (isAutoRefresh) CyberCyan else TextSecondary,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
 
@@ -288,7 +288,7 @@ fun MonitorScreen(
 
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(DarkSurfaceVariant)
                         .clickable {
@@ -298,7 +298,7 @@ fun MonitorScreen(
                 ) {
                     if (isLoadingStats || (selectedSection == 1 && isAppsLoading)) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
                             color = CyberCyan
                         )
@@ -307,7 +307,7 @@ fun MonitorScreen(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refresh",
                             tint = CyberCyan,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
                 }
