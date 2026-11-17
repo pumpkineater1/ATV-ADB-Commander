@@ -1,6 +1,7 @@
 # ATV ADB Commander 📺⚡
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Version](https://img.shields.io/badge/Version-v1.2.0-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Android%20TV%20%7C%20Google%20TV%20%7C%20Fire%20TV-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
 [![UI](https://img.shields.io/badge/Jetpack%20Compose-Material%203-blue.svg)](https://developer.android.com/jetpack/compose)
@@ -43,27 +44,45 @@
 - Directly extracts the APK from phone storage and streams it to your TV with automatic installation (`pm install -r -d -g`).
 - Never hunt for sketchy third-party APK download links again.
 
-### 7. 🎮 3-in-1 Smart Remote Controller
+### 7. 🎮 3-in-1 Smart Remote Controller & Volume Sync
 - **Directional D-Pad**: Classic Up, Down, Left, Right, and Center Select with tactile haptic feedback.
 - **Virtual Trackpad / Air Mouse**: Smooth touch surface for swiping and clicking inside TV web browsers or mobile-ported apps.
 - **Numpad & Channel Mode**: Full 12-key numeric pad for live TV channels, setup codes, and PINs.
 - **Software Keyboard Input**: Send typed text, URLs, and complex passwords directly to TV input fields.
-- **Media Controls**: Volume Up/Down/Mute, Play/Pause, Fast Forward, Rewind, and Home.
+- **Physical Volume Rocker Sync**: Adjust TV master volume using your phone's physical hardware volume keys (`KEYCODE_VOLUME_UP` / `VOLUME_DOWN`).
+- **Media Controls**: Volume Up/Down/Mute via `cmd media_session volume`, Play/Pause, Fast Forward, Rewind, and Home.
 
-### 8. 📁 Two-Way Interactive TV File Explorer
+### 8. 📁 Two-Way TV File Explorer with Instant "Play on TV"
 - Browse the full TV storage hierarchy (`/sdcard/`, `Downloads`, `Movies`, `Pictures`).
-- **Push Files**: Upload videos, subtitles, photos, or ROMs from phone to TV.
-- **Pull Files**: Download recordings, logs, or backups from TV directly to your phone.
-- **File Management**: Create directories (`mkdir -p`) and delete files (`rm -rf`) with confirmation dialogs.
+- **Instant Media Casting ("Play on TV")**:
+  - **Audio** (`.mp3`, `.m4a`, `.flac`, `.wav`, etc.) ➔ Plays directly on TV via system media player.
+  - **Video** (`.mp4`, `.mkv`, `.avi`, `.mov`, etc.) ➔ Launches TV video player.
+  - **Images** (`.png`, `.jpg`, `.jpeg`, `.webp`, etc.) ➔ Displays in TV photo viewer.
+  - **APKs** (`.apk`) ➔ Triggers TV package installer prompt.
+- **Push & Pull**: Upload files from phone to TV or download recordings/logs from TV to phone.
+- **File Operations**: Create directories (`mkdir -p`) and delete files (`rm -rf`) with confirmation dialogs.
 
-### 9. 🛠️ Power & TV Tweaks Suite (with 3-Dots Menu)
-- **Top-Right Overflow Menu (`⋮`)**: Quick access to power user actions:
-  - **About & Contact**: Version details and developer contact modal.
-  - **TV Developer Options**: Instant launch of hidden TV developer settings.
-  - **Keep TV Screen Awake**: Toggle `svc power stayon true/false` to prevent unwanted standby.
+### 9. 📶 Wireless & Bluetooth Device Hub
+- **Silent Saved Wi-Fi Switching**: Switch between saved Wi-Fi networks with one tap via direct Android `IWifiManager` transactions (no intrusive TV setup dialogs).
+- **Wi-Fi Scanner**: Scan and view nearby 2.4 GHz and 5 GHz networks with live RSSI signal indicators.
+- **Bluetooth Device Manager**: View bonded Bluetooth accessories (headphones, earbuds, soundbars, gamepads) with battery levels.
+- **1-Tap Audio Connect & Disconnect**: Automatically connect or disconnect audio routing to your Bluetooth headphones.
+- **Accessory Settings**: Quick shortcut (⚙️) to open the TV's native accessory manager to rename or unpair devices.
+
+### 10. ⚡ Smart Sleep Detection & Instant Wake Up
+- Monitors TV power state in real time via `dumpsys power`.
+- Displays a **"TV in Sleep Mode"** banner when the TV enters standby or dozing.
+- One-tap **"Wake Up TV"** button restores the TV screen and re-establishes fast ADB communication.
+
+### 11. 🛠️ Power & TV Tweaks Suite (with 3-Dots Menu)
+- **Top-Right Overflow Menu (`⋮`)**:
+  - **About & Contact**: Version information and developer contact (`message2sekhar@gmail.com`).
+  - **Wireless & Bluetooth**: Instant shortcut to the Wi-Fi and Bluetooth dialog.
+  - **TV Developer Options**: Direct launch of hidden TV developer settings.
+  - **Keep TV Screen Awake (Stay Awake)**: Toggle `svc power stayon true/false`.
+  - **Take TV Screenshot**: Capture TV screen and save directly to phone.
   - **Flush TV Logcat Buffer**: One-tap `logcat -c` memory buffer purge.
-  - **TV Screenshot Capture**: Instant high-resolution TV screengrab saved to phone.
-  - **Reboot Modes**: Normal Reboot, Soft Reboot (`restart zygote`), and Recovery.
+  - **Reboot TV**: Fast reboot confirmation.
 - **Display Resolution & Density**: Custom resolution scaling (1080p, 4K, 720p) and DPI adjustments.
 - **Animation Scales**: Speed up TV UI animations (0.5x, 0.25x, or disabled).
 
@@ -145,6 +164,12 @@ cd atv-adb-commander
 # Install directly to a connected test phone via ADB:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+---
+
+## 📝 Changelog & Release Notes
+
+For a complete record of all recent features, bug fixes, and improvements, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
