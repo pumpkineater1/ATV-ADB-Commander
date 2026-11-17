@@ -207,3 +207,45 @@ data class NetworkTelemetry(
     val linkSpeed: String = "866 Mbps",
     val appUsageList: List<AppNetworkUsage> = emptyList()
 )
+
+data class TvBluetoothDevice(
+    val name: String,
+    val address: String,
+    val type: String = "Audio",
+    val isConnected: Boolean = false,
+    val batteryPercent: Int? = null
+)
+
+data class TvBluetoothState(
+    val isEnabled: Boolean = true,
+    val adapterName: String = "Android TV",
+    val adapterAddress: String = "",
+    val bondedDevices: List<TvBluetoothDevice> = emptyList()
+)
+
+data class TvSavedWifiNetwork(
+    val networkId: Int,
+    val ssid: String,
+    val security: String
+)
+
+data class TvScannedWifiNetwork(
+    val bssid: String,
+    val ssid: String,
+    val rssi: Int,
+    val frequencyMhz: Int,
+    val flags: String
+)
+
+data class TvWifiDetails(
+    val isEnabled: Boolean = true,
+    val isConnected: Boolean = true,
+    val currentSsid: String = "",
+    val bssid: String = "",
+    val ipAddress: String = "",
+    val rssi: Int = -50,
+    val linkSpeedMbps: Int = 0,
+    val frequencyMhz: Int = 0,
+    val savedNetworks: List<TvSavedWifiNetwork> = emptyList(),
+    val scannedNetworks: List<TvScannedWifiNetwork> = emptyList()
+)

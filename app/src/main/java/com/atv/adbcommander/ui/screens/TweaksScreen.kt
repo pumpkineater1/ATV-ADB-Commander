@@ -61,6 +61,7 @@ fun TweaksScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showRebootConfirm by remember { mutableStateOf(false) }
+    var showWirelessDialog by remember { mutableStateOf(false) }
     var isStayAwakeActive by remember { mutableStateOf(false) }
 
     var isPurgingCache by remember { mutableStateOf(false) }
@@ -174,7 +175,17 @@ fun TweaksScreen(
 
                         HorizontalDivider(color = TellyOutlineSubtle.copy(alpha = 0.5f))
 
-                        // 2. Open TV Developer Settings
+                        // 2. Wireless & Bluetooth
+                        DropdownMenuItem(
+                            text = { Text("Wireless & Bluetooth", color = TellyOnSurface, fontWeight = FontWeight.SemiBold) },
+                            leadingIcon = { Icon(Icons.Default.SettingsBluetooth, contentDescription = null, tint = Color(0xFF64B5F6)) },
+                            onClick = {
+                                showMenu = false
+                                showWirelessDialog = true
+                            }
+                        )
+
+                        // 3. Open TV Developer Settings
                         DropdownMenuItem(
                             text = { Text("TV Developer Options", color = TellyOnSurface) },
                             leadingIcon = { Icon(Icons.Default.DeveloperMode, contentDescription = null, tint = Color(0xFF64B5F6)) },
@@ -516,6 +527,52 @@ fun TweaksScreen(
                             colors = ButtonDefaults.filledTonalButtonColors(containerColor = TellySurfaceContainerHigh)
                         ) {
                             Text(if (isCleaningApks) "Cleaning..." else "Clean orphaned APKs")
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = TellyOutlineSubtle, modifier = Modifier.padding(vertical = 4.dp))
+
+                // Action: Wireless & Bluetooth Devices
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = isConnected) { showWirelessDialog = true }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.SettingsBluetooth,
+                                contentDescription = null,
+                                tint = Color(0xFF64B5F6),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Wireless & Bluetooth",
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = TellyOnSurface
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Silently view & manage TV Bluetooth devices, headphones, and Wi-Fi networks.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TellyOnSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        FilledTonalButton(
+                            onClick = { showWirelessDialog = true },
+                            enabled = isConnected,
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = TellySurfaceContainerHigh)
+                        ) {
+                            Icon(Icons.Default.Devices, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Manage Devices")
                         }
                     }
                 }
@@ -883,6 +940,16 @@ fun TweaksScreen(
                     Text("Cancel", color = TellyOnSurface)
                 }
             }
+        )
+    }
+
+    // ==========================================
+    // Wireless & Bluetooth Dialog
+    // ==========================================
+    if (showWirelessDialog) {
+        com.atv.adbcommander.ui.components.WirelessBluetoothDialog(
+            adbManager = adbManager,
+            onDismiss = { showWirelessDialog = false }
         )
     }
 }

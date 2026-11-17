@@ -80,6 +80,7 @@ fun OverviewScreen(
     var showSendDestinationDialog by remember { mutableStateOf(false) }
     var availableMounts by remember { mutableStateOf<List<TvStorageMount>>(emptyList()) }
     var showRebootDialog by remember { mutableStateOf(false) }
+    var showWirelessDialog by remember { mutableStateOf(false) }
 
     // APK File Picker for "+ Install app"
     val apkPickerLauncher = rememberLauncherForActivityResult(
@@ -1001,6 +1002,59 @@ fun OverviewScreen(
         }
 
         // ==========================================
+        // 3.6. Wireless & Bluetooth Devices Card
+        // ==========================================
+        item {
+            TellyCard(
+                onClick = { showWirelessDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF1565C0).copy(alpha = 0.2f),
+                        border = BorderStroke(1.dp, Color(0xFF1976D2).copy(alpha = 0.4f)),
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.SettingsBluetooth,
+                                contentDescription = "Wireless & Devices",
+                                tint = Color(0xFF64B5F6),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Wireless & Bluetooth Devices",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TellyOnSurface
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Silently manage TV Bluetooth headphones, remotes & Wi-Fi",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TellyOnSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = TellyOnSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+
+        // ==========================================
         // 4. Debloat Recommendation Banner (Exact match to tv-page.png)
         // ==========================================
         item {
@@ -1349,6 +1403,13 @@ fun OverviewScreen(
             },
             containerColor = TellySurfaceContainerHigh,
             shape = RoundedCornerShape(18.dp)
+        )
+    }
+
+    if (showWirelessDialog) {
+        com.atv.adbcommander.ui.components.WirelessBluetoothDialog(
+            adbManager = adbManager,
+            onDismiss = { showWirelessDialog = false }
         )
     }
 }

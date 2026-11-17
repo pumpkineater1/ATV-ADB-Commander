@@ -1728,6 +1728,208 @@ class AdbManager(private val context: Context) {
         }
     }
 
+    // ==========================================
+    // Wireless & Bluetooth Manager
+    // ==========================================
+
+    suspend fun fetchBluetoothState(): TvBluetoothState = withContext(Dispatchers.IO) {
+        try {
+            val raw = runShell("dumpsys bluetooth_manager 2>/dev/null")
+            var isEnabled = true
+            var adapterName = "Android TV"
+            var adapterAddress = ""
+            val devices = mutableListOf<TvBluetoothDevice>()
+
+            val lines = raw.lines()
+            var inBonded = false
+            val bondedRegex = Regex("^\\s*([0-9A-Fa-f:]{17})\\s*\\[\\s*([A-Za-z0-9_/]+)\\s*\\]\\s*(.*)$")
+
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.startsWith("enabled: false") || trimmed.startsWith("state: OFF")) {
+                    isEnabled = false
+                }
+                if (trimmed.startsWith("Name: ")) {
+                    adapterName = trimmed.removePrefix("Name: ").trim()
+                }
+                if (trimmed.startsWith("Address: ") && adapterAddress.isEmpty()) {
+                    adapterAddress = trimmed.removePrefix("Address: ").trim()
+                }
+
+                if (trimmed.startsWith("Bonded devices:")) {
+                    inBonded = true
+                    continue
+                }
+                if (inBonded) {
+                    if (trimmed.isEmpty() || trimmed.startsWith("Scan Mode Changes:") || trimmed.startsWith("Profile:") || trimmed.startsWith("Enabled Profile Services:")) {
+                        inBonded = false
+                    } else {
+                        val match = bondedRegex.find(line)
+                        if (match != null) {
+                            val addr = match.groupValues[1].trim()
+                            val rawType = match.groupValues[2].trim()
+                            val name = match.groupValues[3].trim()
+
+                            val type = when {
+                                name.contains("Remote", ignoreCase = true) || rawType.contains("LE") -> "Remote"
+                                name.contains("Game", ignoreCase = true) || name.contains("Controller", ignoreCase = true) -> "Gamepad"
+                                rawType.contains("DUAL") || rawType.contains("BR/EDR") || name.contains("Bose", ignoreCase = true) || name.contains("Wireless", ignoreCase = true) || name.contains("soundcore", ignoreCase = true) || name.contains("Buds", ignoreCase = true) || name.contains("Headset", ignoreCase = true) -> "Audio"
+                                else -> "Bluetooth Device"
+                            }
+
+                            val isConn = raw.contains("CONNECTED    ${addr.lowercase()}") ||
+                                         raw.contains("CONNECTED    $addr") ||
+                                         (type == "Remote" && raw.contains("Profile: HidHostService"))
+
+                            devices.add(TvBluetoothDevice(name = name, address = addr, type = type, isConnected = isConn))
+                        }
+                    }
+                }
+            }
+            TvBluetoothState(isEnabled = isEnabled, adapterName = adapterName, adapterAddress = adapterAddress, bondedDevices = devices)
+        } catch (e: Exception) {
+            TvBluetoothState()
+        }
+    }
+
+    suspend fun toggleBluetooth(enable: Boolean): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val cmd = if (enable) "cmd bluetooth_manager enable" else "cmd bluetooth_manager disable"
+            runShell(cmd)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun openPairNewBluetoothDevice(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
+            runShell("am start -n com.android.tv.settings/.accessories.AddAccessoryActivity || am start -a android.settings.BLUETOOTH_SETTINGS")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun disconnectBluetoothAudio(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            runShell("cmd bluetooth_manager disable && sleep 1 && cmd bluetooth_manager enable")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun fetchWifiDetails(): TvWifiDetails = withContext(Dispatchers.IO) {
+        try {
+            val statusRaw = runShell("cmd wifi status 2>/dev/null")
+            val listNetworksRaw = runShell("cmd wifi list-networks 2>/dev/null")
+
+            val isEnabled = !statusRaw.contains("Wifi is disabled")
+            val isConnected = statusRaw.contains("Wifi is connected to")
+            var currentSsid = ""
+            var ip = ""
+            var rssi = -50
+            var linkSpeed = 0
+            var freq = 0
+
+            val ssidMatch = Regex("Wifi is connected to \"([^\"]+)\"").find(statusRaw)
+            if (ssidMatch != null) currentSsid = ssidMatch.groupValues[1]
+
+            val ipMatch = Regex("IP: /([0-9.]+)").find(statusRaw)
+            if (ipMatch != null) ip = ipMatch.groupValues[1]
+
+            val rssiMatch = Regex("RSSI: (-?[0-9]+)").find(statusRaw)
+            if (rssiMatch != null) rssi = rssiMatch.groupValues[1].toIntOrNull() ?: -50
+
+            val speedMatch = Regex("Link speed: ([0-9]+)Mbps").find(statusRaw)
+            if (speedMatch != null) linkSpeed = speedMatch.groupValues[1].toIntOrNull() ?: 0
+
+            val freqMatch = Regex("Frequency: ([0-9]+)MHz").find(statusRaw)
+            if (freqMatch != null) freq = freqMatch.groupValues[1].toIntOrNull() ?: 0
+
+            val savedList = mutableListOf<TvSavedWifiNetwork>()
+            for (line in listNetworksRaw.lines()) {
+                val parts = line.trim().split(Regex("\\s+"))
+                if (parts.size >= 3 && parts[0].toIntOrNull() != null) {
+                    val id = parts[0].toInt()
+                    val s = parts[1]
+                    val sec = parts.drop(2).joinToString(" ")
+                    if (savedList.none { it.ssid == s }) {
+                        savedList.add(TvSavedWifiNetwork(networkId = id, ssid = s, security = sec))
+                    }
+                }
+            }
+
+            TvWifiDetails(
+                isEnabled = isEnabled,
+                isConnected = isConnected,
+                currentSsid = currentSsid,
+                bssid = "",
+                ipAddress = ip,
+                rssi = rssi,
+                linkSpeedMbps = linkSpeed,
+                frequencyMhz = freq,
+                savedNetworks = savedList
+            )
+        } catch (e: Exception) {
+            TvWifiDetails()
+        }
+    }
+
+    suspend fun scanWifiNetworks(): List<TvScannedWifiNetwork> = withContext(Dispatchers.IO) {
+        try {
+            val raw = runShell("cmd wifi start-scan && sleep 1 && cmd wifi list-scan-results 2>/dev/null")
+            val list = mutableListOf<TvScannedWifiNetwork>()
+            for (line in raw.lines()) {
+                val parts = line.trim().split(Regex("\\s+"))
+                if (parts.size >= 5 && parts[0].contains(":")) {
+                    val bssid = parts[0]
+                    val freq = parts[1].toIntOrNull() ?: 0
+                    val rssi = parts[2].toIntOrNull() ?: -70
+                    val ssid = parts[4]
+                    val flags = if (parts.size > 5) parts[5] else ""
+                    if (ssid.isNotBlank() && !ssid.startsWith("[") && list.none { it.ssid == ssid }) {
+                        list.add(TvScannedWifiNetwork(bssid = bssid, ssid = ssid, rssi = rssi, frequencyMhz = freq, flags = flags))
+                    }
+                }
+            }
+            list.sortedByDescending { it.rssi }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun toggleWifi(enable: Boolean): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val cmd = if (enable) "cmd wifi set-wifi-enabled enabled" else "cmd wifi set-wifi-enabled disabled"
+            runShell(cmd)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun forgetWifi(networkId: Int): Boolean = withContext(Dispatchers.IO) {
+        try {
+            runShell("cmd wifi forget-network $networkId")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun openTvWifiSettings(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
+            runShell("am start -a android.settings.WIFI_SETTINGS || am start -n com.android.tv.settings/.connectivity.NetworkActivity")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun getDisplaySettings(): TvDisplaySettings = withContext(Dispatchers.IO) {
         var res = "Unknown"
         var density = "Unknown"
