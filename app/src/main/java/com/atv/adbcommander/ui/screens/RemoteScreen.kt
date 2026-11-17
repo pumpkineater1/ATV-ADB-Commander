@@ -337,7 +337,10 @@ fun RemoteScreen(
             RemoteCircleButton(
                 icon = Icons.Default.VolumeMute,
                 contentDescription = "Mute",
-                onClick = { sendKey(164) }
+                onClick = {
+                    performHaptic()
+                    coroutineScope.launch { adbManager.volumeMute() }
+                }
             )
 
             // Volume Connected Pill (Vol - | Vol +)
@@ -351,7 +354,10 @@ fun RemoteScreen(
                     modifier = Modifier.padding(horizontal = 6.dp)
                 ) {
                     IconButton(
-                        onClick = { sendKey(25) /* Volume Down */ },
+                        onClick = {
+                            performHaptic()
+                            coroutineScope.launch { adbManager.volumeDown() }
+                        },
                         modifier = Modifier.size(46.dp)
                     ) {
                         Icon(
@@ -370,7 +376,10 @@ fun RemoteScreen(
                     )
 
                     IconButton(
-                        onClick = { sendKey(24) /* Volume Up */ },
+                        onClick = {
+                            performHaptic()
+                            coroutineScope.launch { adbManager.volumeUp() }
+                        },
                         modifier = Modifier.size(46.dp)
                     ) {
                         Icon(

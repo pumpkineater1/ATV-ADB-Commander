@@ -38,6 +38,7 @@ import com.atv.adbcommander.ui.screens.*
 import com.atv.adbcommander.ui.theme.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 
@@ -490,6 +491,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val adbManager = (application as AdbApp).adbManager
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_VOLUME_UP -> {
+                    lifecycleScope.launch { adbManager.volumeUp() }
+                    return true
+                }
+                android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                    lifecycleScope.launch { adbManager.volumeDown() }
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 }
 

@@ -29,6 +29,7 @@ import com.atv.adbcommander.adb.AdbManager
 import com.atv.adbcommander.model.*
 import com.atv.adbcommander.ui.theme.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @Composable
 fun WirelessBluetoothDialog(
@@ -45,6 +46,10 @@ fun WirelessBluetoothDialog(
     var bluetoothState by remember { mutableStateOf(TvBluetoothState()) }
     var wifiDetails by remember { mutableStateOf(TvWifiDetails()) }
     var scannedWifiList by remember { mutableStateOf<List<TvScannedWifiNetwork>>(emptyList()) }
+
+    var connectWifiDialogNetwork by remember { mutableStateOf<String?>(null) }
+    var connectWifiPassword by remember { mutableStateOf("") }
+    var isConnectingWifi by remember { mutableStateOf(false) }
 
     fun refreshData() {
         scope.launch {
@@ -387,28 +392,71 @@ fun WirelessBluetoothDialog(
                                                 )
                                             }
 
-                                            // Action: Disconnect Audio if it's connected
-                                            if (device.type == "Audio" && device.isConnected) {
+                                            // Actions: Connect or Disconnect
+                                            if (device.isConnected) {
+                                                if (device.type == "Audio") {
+                                                    Surface(
+                                                        onClick = {
+                                                            scope.launch {
+                                                                adbManager.disconnectBluetoothAudio()
+                                                                Toast.makeText(context, "Audio disconnected silently", Toast.LENGTH_SHORT).show()
+                                                                refreshData()
+                                                            }
+                                                        },
+                                                        shape = RoundedCornerShape(10.dp),
+                                                        color = TellySurfaceContainer,
+                                                        border = BorderStroke(1.dp, TellyOutlineSubtle)
+                                                    ) {
+                                                        Text(
+                                                            text = "Disconnect",
+                                                            fontSize = 10.5.sp,
+                                                            color = TellyError,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                        )
+                                                    }
+                                                }
+                                            } else {
                                                 Surface(
                                                     onClick = {
                                                         scope.launch {
-                                                            adbManager.disconnectBluetoothAudio()
-                                                            Toast.makeText(context, "Audio disconnected silently", Toast.LENGTH_SHORT).show()
+                                                            Toast.makeText(context, "Connecting to ${device.name}...", Toast.LENGTH_SHORT).show()
+                                                            adbManager.connectBluetoothDevice(device.address, device.name)
+                                                            delay(1500)
                                                             refreshData()
                                                         }
                                                     },
                                                     shape = RoundedCornerShape(10.dp),
-                                                    color = TellySurfaceContainer,
-                                                    border = BorderStroke(1.dp, TellyOutlineSubtle)
+                                                    color = Color(0xFF1976D2)
                                                 ) {
                                                     Text(
-                                                        text = "Disconnect",
+                                                        text = "Connect",
                                                         fontSize = 10.5.sp,
-                                                        color = TellyError,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                                                     )
                                                 }
+                                            }
+
+                                            Spacer(Modifier.width(4.dp))
+
+                                            // Quick accessory settings icon button on TV (rename / unpair)
+                                            IconButton(
+                                                onClick = {
+                                                    scope.launch {
+                                                        adbManager.connectBluetoothDevice(device.address, device.name)
+                                                        Toast.makeText(context, "Opening ${device.name} on TV...", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Settings,
+                                                    contentDescription = "Manage on TV",
+                                                    tint = TellyOnSurfaceVariant,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
                                             }
                                         }
                                     }
@@ -418,20 +466,20 @@ fun WirelessBluetoothDialog(
 
                         Spacer(Modifier.height(12.dp))
 
-                        // Bottom Actions: [ ⟳ Refresh ]  [ + Pair New Device ]
+                        // Bottom Actions: [ ⟳ Refresh ]  [ + Pair New ]  [ TV Settings ]
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             OutlinedButton(
                                 onClick = { refreshData() },
                                 shape = RoundedCornerShape(14.dp),
                                 border = BorderStroke(1.dp, TellyOutlineSubtle),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(0.9f)
                             ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Refresh", fontSize = 12.sp)
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Text("Refresh", fontSize = 11.sp)
                             }
 
                             Button(
@@ -443,11 +491,27 @@ fun WirelessBluetoothDialog(
                                 },
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                                modifier = Modifier.weight(1.3f)
+                                modifier = Modifier.weight(1.1f)
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Pair New Device", fontSize = 12.sp, color = Color.White)
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Text("Pair New", fontSize = 11.sp, color = Color.White)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        adbManager.openRemotesAndAccessoriesSettings()
+                                        Toast.makeText(context, "Opening TV Remotes & Accessories...", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, TellyOutlineSubtle),
+                                modifier = Modifier.weight(1.1f)
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Text("TV Remotes", fontSize = 11.sp)
                             }
                         }
                     }
@@ -619,22 +683,48 @@ fun WirelessBluetoothDialog(
                                         }
 
                                         if (!isCurrent) {
-                                            IconButton(
-                                                onClick = {
-                                                    scope.launch {
-                                                        val ok = adbManager.forgetWifi(net.networkId)
-                                                        Toast.makeText(context, if (ok) "Forgot ${net.ssid}" else "Failed to forget network", Toast.LENGTH_SHORT).show()
-                                                        refreshData()
-                                                    }
-                                                },
-                                                modifier = Modifier.size(32.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.DeleteOutline,
-                                                    contentDescription = "Forget",
-                                                    tint = TellyError,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            Toast.makeText(context, "Switching TV to ${net.ssid}...", Toast.LENGTH_SHORT).show()
+                                                            adbManager.connectWifiNetwork(net.ssid, net.security)
+                                                            delay(2000)
+                                                            refreshData()
+                                                        }
+                                                    },
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    color = TellyTealPrimary.copy(alpha = 0.2f),
+                                                    border = BorderStroke(1.dp, TellyTealPrimary.copy(alpha = 0.5f))
+                                                ) {
+                                                    Text(
+                                                        text = "Connect",
+                                                        fontSize = 10.5.sp,
+                                                        color = TellyTealPrimary,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                                                    )
+                                                }
+
+                                                Spacer(Modifier.width(4.dp))
+
+                                                IconButton(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val ok = adbManager.forgetWifi(net.networkId)
+                                                            Toast.makeText(context, if (ok) "Forgot ${net.ssid}" else "Failed to forget network", Toast.LENGTH_SHORT).show()
+                                                            refreshData()
+                                                        }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.DeleteOutline,
+                                                        contentDescription = "Forget",
+                                                        tint = TellyError,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -655,6 +745,10 @@ fun WirelessBluetoothDialog(
 
                                 items(scannedWifiList) { scanned ->
                                     Surface(
+                                        onClick = {
+                                            connectWifiDialogNetwork = scanned.ssid
+                                            connectWifiPassword = ""
+                                        },
                                         shape = RoundedCornerShape(12.dp),
                                         color = TellySurfaceContainerHigh.copy(alpha = 0.6f),
                                         modifier = Modifier.fillMaxWidth()
@@ -669,7 +763,11 @@ fun WirelessBluetoothDialog(
                                                 Spacer(Modifier.width(8.dp))
                                                 Text(scanned.ssid, fontSize = 12.sp, color = TellyOnSurface)
                                             }
-                                            Text("${scanned.rssi} dBm", fontSize = 11.sp, color = TellyTealPrimary)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("${scanned.rssi} dBm", fontSize = 11.sp, color = TellyTealPrimary)
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("Connect", fontSize = 10.sp, color = TellyTealPrimary, fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
                                 }
@@ -678,7 +776,7 @@ fun WirelessBluetoothDialog(
 
                         Spacer(Modifier.height(12.dp))
 
-                        // Bottom Actions: [ Scan Nearby ]  [ TV Wi-Fi Settings ]
+                        // Bottom Actions: [ Scan Nearby ]  [ TV Wi-Fi Setup ]
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -708,8 +806,8 @@ fun WirelessBluetoothDialog(
                             OutlinedButton(
                                 onClick = {
                                     scope.launch {
-                                        adbManager.openTvWifiSettings()
-                                        Toast.makeText(context, "Opening TV Wi-Fi settings...", Toast.LENGTH_SHORT).show()
+                                        adbManager.openWifiWizard()
+                                        Toast.makeText(context, "Opening TV Wi-Fi Setup Wizard...", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 shape = RoundedCornerShape(14.dp),
@@ -718,12 +816,70 @@ fun WirelessBluetoothDialog(
                             ) {
                                 Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("TV Settings", fontSize = 12.sp)
+                                Text("TV Wi-Fi Setup", fontSize = 12.sp)
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Connect to Wi-Fi Network with Password Dialog
+    if (connectWifiDialogNetwork != null) {
+        val targetSsid = connectWifiDialogNetwork!!
+        AlertDialog(
+            onDismissRequest = { connectWifiDialogNetwork = null },
+            title = {
+                Text("Connect to $targetSsid", fontWeight = FontWeight.Bold, color = TellyOnSurface, fontSize = 16.sp)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Enter Wi-Fi password (or leave empty if it's an open network):",
+                        fontSize = 12.sp,
+                        color = TellyOnSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = connectWifiPassword,
+                        onValueChange = { connectWifiPassword = it },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = TellyTealPrimary,
+                            unfocusedBorderColor = TellyOutlineSubtle,
+                            focusedTextColor = TellyOnSurface,
+                            unfocusedTextColor = TellyOnSurface
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isConnectingWifi = true
+                            Toast.makeText(context, "Connecting TV to $targetSsid...", Toast.LENGTH_SHORT).show()
+                            adbManager.connectWifiNetwork(targetSsid, "wpa2", connectWifiPassword)
+                            connectWifiDialogNetwork = null
+                            delay(2500)
+                            refreshData()
+                            isConnectingWifi = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TellyTealPrimary)
+                ) {
+                    Text("Connect", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { connectWifiDialogNetwork = null }) {
+                    Text("Cancel", color = TellyOnSurfaceVariant)
+                }
+            },
+            containerColor = TellySurfaceContainerHigh,
+            shape = RoundedCornerShape(18.dp)
+        )
     }
 }

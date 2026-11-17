@@ -528,7 +528,12 @@ class AdbManager(private val context: Context) {
     }
 
     suspend fun sendKeyEvent(keyCode: Int): Boolean = withContext(Dispatchers.IO) {
-        val cmd = if (supportsCmdInput == true) "cmd input keyevent $keyCode\n" else "cmd input keyevent $keyCode 2>/dev/null || input keyevent $keyCode\n"
+        val cmd = when (keyCode) {
+            KEYCODE_VOLUME_UP -> "cmd media_session volume --show --adj raise || input keyevent 24\n"
+            KEYCODE_VOLUME_DOWN -> "cmd media_session volume --show --adj lower || input keyevent 25\n"
+            KEYCODE_VOLUME_MUTE -> "cmd media_session dispatch mute || input keyevent 164\n"
+            else -> if (supportsCmdInput == true) "cmd input keyevent $keyCode\n" else "cmd input keyevent $keyCode 2>/dev/null || input keyevent $keyCode\n"
+        }
         try {
             val stream = getFastRemoteStream()
             if (stream != null) {
@@ -548,6 +553,33 @@ class AdbManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send keyevent $keyCode: ${e.message}")
             false
+        }
+    }
+
+    suspend fun volumeUp(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            runShell("cmd media_session volume --show --adj raise || input keyevent 24")
+            true
+        } catch (e: Exception) {
+            sendKeyEvent(KEYCODE_VOLUME_UP)
+        }
+    }
+
+    suspend fun volumeDown(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            runShell("cmd media_session volume --show --adj lower || input keyevent 25")
+            true
+        } catch (e: Exception) {
+            sendKeyEvent(KEYCODE_VOLUME_DOWN)
+        }
+    }
+
+    suspend fun volumeMute(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            runShell("cmd media_session dispatch mute || input keyevent 164")
+            true
+        } catch (e: Exception) {
+            sendKeyEvent(KEYCODE_VOLUME_MUTE)
         }
     }
 
@@ -1779,6 +1811,8 @@ class AdbManager(private val context: Context) {
 
                             val isConn = raw.contains("CONNECTED    ${addr.lowercase()}") ||
                                          raw.contains("CONNECTED    $addr") ||
+                                         raw.contains("mActiveDevice: $addr", ignoreCase = true) ||
+                                         raw.contains("mActiveDevice: ${addr.lowercase()}") ||
                                          (type == "Remote" && raw.contains("Profile: HidHostService"))
 
                             devices.add(TvBluetoothDevice(name = name, address = addr, type = type, isConnected = isConn))
@@ -1796,6 +1830,34 @@ class AdbManager(private val context: Context) {
         try {
             val cmd = if (enable) "cmd bluetooth_manager enable" else "cmd bluetooth_manager disable"
             runShell(cmd)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun connectBluetoothDevice(address: String, name: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
+            runShell("cmd bluetooth_manager enable")
+            // Launch the TV's Bluetooth Accessory page for this specific device
+            val intentCmd = "am start -n com.android.tv.settings/.accessories.BluetoothAccessoryActivity " +
+                    "--es \"EXTRA_ACCESSORY_ADDRESS\" \"$address\" " +
+                    "--es \"EXTRA_ACCESSORY_NAME\" \"$name\" " +
+                    "--es \"accessory_address\" \"$address\" " +
+                    "--es \"accessory_name\" \"$name\""
+            runShell(intentCmd)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to connect bluetooth device $address: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun openRemotesAndAccessoriesSettings(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
+            runShell("am start -n com.android.tv.settings/.MainSettings || am start -a android.settings.SETTINGS")
             true
         } catch (e: Exception) {
             false
@@ -1926,6 +1988,38 @@ class AdbManager(private val context: Context) {
             runShell("am start -a android.settings.WIFI_SETTINGS || am start -n com.android.tv.settings/.connectivity.NetworkActivity")
             true
         } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun openWifiWizard(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
+            runShell("am start -n com.android.tv.settings/.connectivity.setup.WifiSetupActivity || am start -n com.android.tv.settings/.connectivity.NetworkActivity")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun connectWifiNetwork(ssid: String, security: String? = null, password: String? = null): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
+            runShell("cmd wifi set-wifi-enabled enabled")
+            if (!password.isNullOrBlank()) {
+                val secType = when {
+                    security?.contains("wpa3", ignoreCase = true) == true -> "wpa3"
+                    security?.contains("wpa", ignoreCase = true) == true -> "wpa2"
+                    security?.contains("open", ignoreCase = true) == true -> "open"
+                    else -> "wpa2"
+                }
+                runShell("cmd wifi add-suggestion \"$ssid\" $secType \"$password\"")
+            }
+            // Launch the TV's Wi-Fi network wizard so TV connects to the network or prompts the user
+            runShell("am start -n com.android.tv.settings/.connectivity.setup.WifiSetupActivity || am start -n com.android.tv.settings/.connectivity.NetworkActivity")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed connecting wifi network $ssid: ${e.message}")
             false
         }
     }
