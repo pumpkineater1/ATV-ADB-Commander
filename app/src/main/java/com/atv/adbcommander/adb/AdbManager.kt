@@ -1840,7 +1840,43 @@ class AdbManager(private val context: Context) {
         try {
             wakeTv()
             runShell("cmd bluetooth_manager enable")
-            // Launch the TV's Bluetooth Accessory page for this specific device
+            
+            // 1. Open MainSettings on TV
+            runShell("am start -n com.android.tv.settings/.MainSettings")
+            kotlinx.coroutines.delay(350)
+            
+            // 2. Scroll to Remotes & Accessories (7 items down from Display & Sound) and select it
+            runShell("cmd input keyevent 20 && cmd input keyevent 20 && cmd input keyevent 20 && cmd input keyevent 20 && cmd input keyevent 20 && cmd input keyevent 20 && cmd input keyevent 20 && cmd input keyevent 23")
+            kotlinx.coroutines.delay(350)
+            
+            // 3. Find device index among bonded devices to navigate to it
+            val state = fetchBluetoothState()
+            val index = state.bondedDevices.indexOfFirst { it.address.equals(address, ignoreCase = true) || it.name.equals(name, ignoreCase = true) }
+            val downSteps = if (index >= 0) index + 1 else 1
+            
+            val navToDevice = buildString {
+                repeat(downSteps) { append("cmd input keyevent 20 && ") }
+                append("cmd input keyevent 23") // Enter into device details
+            }
+            runShell(navToDevice)
+            kotlinx.coroutines.delay(350)
+            
+            // 4. On device details page, click Connect (1 DOWN + ENTER) and confirm Yes (ENTER)
+            runShell("cmd input keyevent 20 && cmd input keyevent 23 && sleep 0.4 && cmd input keyevent 23")
+            
+            // 5. Return back to TV home
+            kotlinx.coroutines.delay(1000)
+            runShell("cmd input keyevent 3")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to connect bluetooth device $name: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun openBluetoothAccessoryManager(address: String, name: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
             val intentCmd = "am start -n com.android.tv.settings/.accessories.BluetoothAccessoryActivity " +
                     "--es \"EXTRA_ACCESSORY_ADDRESS\" \"$address\" " +
                     "--es \"EXTRA_ACCESSORY_NAME\" \"$name\" " +
@@ -1849,7 +1885,6 @@ class AdbManager(private val context: Context) {
             runShell(intentCmd)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to connect bluetooth device $address: ${e.message}")
             false
         }
     }
@@ -1998,6 +2033,22 @@ class AdbManager(private val context: Context) {
             runShell("am start -n com.android.tv.settings/.connectivity.setup.WifiSetupActivity || am start -n com.android.tv.settings/.connectivity.NetworkActivity")
             true
         } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun connectSavedWifi(networkId: Int, ssid: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            wakeTv()
+            runShell("cmd wifi set-wifi-enabled enabled")
+            // Transaction 27 (enableNetwork with disableOthers=true) forces TV to immediately switch to this network
+            runShell("service call wifi 27 i32 $networkId i32 1 s16 'com.android.shell'")
+            // Transaction 39 (reconnect) tells WifiManager to connect right now
+            runShell("service call wifi 39 s16 'com.android.shell'")
+            runShell("service call wifi 23 s16 'com.android.shell'")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed connecting to saved wifi network $ssid (ID $networkId): ${e.message}")
             false
         }
     }

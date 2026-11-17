@@ -445,8 +445,8 @@ fun WirelessBluetoothDialog(
                                             IconButton(
                                                 onClick = {
                                                     scope.launch {
-                                                        adbManager.connectBluetoothDevice(device.address, device.name)
-                                                        Toast.makeText(context, "Opening ${device.name} on TV...", Toast.LENGTH_SHORT).show()
+                                                        adbManager.openBluetoothAccessoryManager(device.address, device.name)
+                                                        Toast.makeText(context, "Opening ${device.name} settings on TV...", Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
                                                 modifier = Modifier.size(28.dp)
@@ -687,9 +687,9 @@ fun WirelessBluetoothDialog(
                                                 Surface(
                                                     onClick = {
                                                         scope.launch {
-                                                            Toast.makeText(context, "Switching TV to ${net.ssid}...", Toast.LENGTH_SHORT).show()
-                                                            adbManager.connectWifiNetwork(net.ssid, net.security)
-                                                            delay(2000)
+                                                            Toast.makeText(context, "Connecting TV to ${net.ssid}...", Toast.LENGTH_SHORT).show()
+                                                            adbManager.connectSavedWifi(net.networkId, net.ssid)
+                                                            delay(2500)
                                                             refreshData()
                                                         }
                                                     },
