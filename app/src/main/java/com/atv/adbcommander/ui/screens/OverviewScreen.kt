@@ -88,7 +88,6 @@ fun OverviewScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                Toast.makeText(context, "Preparing APK install on TV...", Toast.LENGTH_SHORT).show()
                 try {
                     adbManager.ensureConnected()
                     adbManager.wakeTv()
@@ -105,16 +104,15 @@ fun OverviewScreen(
                                 if (sizeIdx >= 0) size = it.getLong(sizeIdx)
                             }
                         }
-                        adbManager.installApk(stream, size, name).collect { prog ->
-                            if (prog.isDone) {
-                                Toast.makeText(context, "Installed $name successfully!", Toast.LENGTH_LONG).show()
-                            } else if (prog.error != null) {
-                                Toast.makeText(context, "Install failed: ${prog.error}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                        adbManager.installApk(
+                            inputStream = stream,
+                            totalBytes = size,
+                            fileName = name,
+                            appName = name.removeSuffix(".apk").replace("_", " ")
+                        ).collect { }
                     }
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Install failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Install error: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }

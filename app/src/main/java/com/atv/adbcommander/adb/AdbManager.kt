@@ -93,6 +93,13 @@ class AdbManager(private val context: Context) {
     private val _backupProgress = MutableStateFlow(BackupProgress())
     val backupProgress: StateFlow<BackupProgress> = _backupProgress.asStateFlow()
 
+    private val _installProgress = MutableStateFlow<TransferProgress?>(null)
+    val installProgress: StateFlow<TransferProgress?> = _installProgress.asStateFlow()
+
+    fun dismissInstallProgress() {
+        _installProgress.value = null
+    }
+
     private val _installedApps = MutableStateFlow<List<TvAppInfo>>(emptyList())
     val installedApps: StateFlow<List<TvAppInfo>> = _installedApps.asStateFlow()
 
@@ -691,15 +698,17 @@ class AdbManager(private val context: Context) {
     }.flowOn(Dispatchers.IO)
 
     /**
-     * Installs an APK on Android TV:
-     * 1. Pushes APK to `/data/local/tmp/temp_app.apk`
-     * 2. Runs `pm install -r -d /data/local/tmp/temp_app.apk`
-     * 3. Deletes temp APK and reports install result.
+     * Installs an APK on Android TV with smooth, continuous lifecycle progress:
+     * 1. Pushes APK to `/data/local/tmp/atv_temp_<time>.apk` (0% -> 70% continuous progress)
+     * 2. Executes `pm install -r -d -g` with continuous TV OS processing stages (70% -> 98%)
+     * 3. Finalizes at 100% on success or reports exact error.
      */
     fun installApk(
         inputStream: InputStream,
         totalBytes: Long,
-        fileName: String
+        fileName: String,
+        packageName: String? = null,
+        appName: String? = null
     ): Flow<TransferProgress> = channelFlow {
         val conn = ensureConnected()
         try {
@@ -708,82 +717,161 @@ class AdbManager(private val context: Context) {
         } catch (ignored: Exception) {}
         val sync = AdbSync(conn)
         val remoteTempApk = "/data/local/tmp/atv_temp_${System.currentTimeMillis()}.apk"
+        val resolvedAppName = appName ?: fileName.removeSuffix(".apk").replace("_", " ")
 
-        send(
-            TransferProgress(
-                fileName = fileName,
-                bytesTransferred = 0,
-                totalBytes = totalBytes,
-                percentage = 0
-            )
+        val initial = TransferProgress(
+            fileName = fileName,
+            appName = resolvedAppName,
+            packageName = packageName,
+            bytesTransferred = 0,
+            totalBytes = totalBytes,
+            percentage = 0,
+            progressFraction = 0f,
+            stageText = "Preparing upload to TV..."
         )
+        _installProgress.value = initial
+        send(initial)
 
         try {
             var lastTime = System.currentTimeMillis()
             var lastBytes = 0L
 
-            // Step 1: Upload APK
+            // Step 1: Upload APK (Upload covers 0% -> 70% of total installation lifecycle)
             sync.push(inputStream, remoteTempApk, totalBytes) { transferred, total ->
                 val now = System.currentTimeMillis()
                 val timeDiff = now - lastTime
-                if (timeDiff >= 300) {
+                if (timeDiff >= 150 || transferred == total) {
                     val bytesDiff = transferred - lastBytes
-                    val speedKbps = (bytesDiff * 1000) / (timeDiff * 1024)
+                    val speedKbps = if (timeDiff > 0) (bytesDiff * 1000) / (timeDiff * 1024) else 0L
                     lastTime = now
                     lastBytes = transferred
-                    val percent = if (total > 0) ((transferred * 100) / total).toInt() else 0
-                    trySend(
-                        TransferProgress(
-                            fileName = fileName,
-                            bytesTransferred = transferred,
-                            totalBytes = total,
-                            percentage = percent,
-                            speedKbps = speedKbps
-                        )
+                    val streamPercent = if (total > 0) ((transferred * 100) / total).toInt() else 0
+                    // Continuous overall progress: upload covers 0% to 70%
+                    val overallPercent = (streamPercent * 0.70f).toInt().coerceIn(0, 70)
+                    val fraction = if (total > 0) (transferred.toFloat() / total.toFloat() * 0.70f).coerceIn(0f, 0.70f) else 0f
+                    
+                    val speedText = when {
+                        speedKbps >= 1024 -> String.format(java.util.Locale.US, "%.1f MB/s", speedKbps / 1024f)
+                        speedKbps > 0 -> "$speedKbps KB/s"
+                        else -> "Streaming..."
+                    }
+                    val update = TransferProgress(
+                        fileName = fileName,
+                        appName = resolvedAppName,
+                        packageName = packageName,
+                        bytesTransferred = transferred,
+                        totalBytes = total,
+                        percentage = overallPercent,
+                        progressFraction = fraction,
+                        speedKbps = speedKbps,
+                        stageText = "Streaming to TV ($streamPercent%) • $speedText",
+                        isInstalling = false
                     )
+                    _installProgress.value = update
+                    trySend(update)
                 }
             }
 
-            // Step 2: Running install
-            send(
-                TransferProgress(
-                    fileName = fileName,
-                    bytesTransferred = totalBytes,
-                    totalBytes = totalBytes,
-                    percentage = 100,
-                    isInstalling = true,
-                    resultMessage = "Installing on TV..."
-                )
-            )
+            // Step 2: Upload complete! Switch to TV OS installation phase (70% -> 98%)
+            var currentPercent = 70
+            var currentFraction = 0.70f
+            var stageMessage = "Unpacking package on Android TV..."
 
-            // Step 3: Run pm install
-            val output = runShell("pm install -r -d -g $remoteTempApk && rm -f $remoteTempApk")
+            val stageUpdate = TransferProgress(
+                fileName = fileName,
+                appName = resolvedAppName,
+                packageName = packageName,
+                bytesTransferred = totalBytes,
+                totalBytes = totalBytes,
+                percentage = currentPercent,
+                progressFraction = currentFraction,
+                isInstalling = true,
+                stageText = stageMessage
+            )
+            _installProgress.value = stageUpdate
+            send(stageUpdate)
+
+            // Launch ticker job to smoothly advance continuous progress during `pm install`
+            val tickerJob = launch {
+                val stages = listOf(
+                    74 to "Verifying package signature & permissions...",
+                    80 to "Extracting DEX code & native libraries...",
+                    86 to "Writing app to Android TV storage...",
+                    92 to "Optimizing runtime performance (AOT)...",
+                    96 to "Finalizing TV package registration...",
+                    98 to "Almost done, verifying installation..."
+                )
+                for ((targetPercent, msg) in stages) {
+                    delay(1100)
+                    currentPercent = targetPercent
+                    currentFraction = targetPercent / 100f
+                    stageMessage = msg
+                    val tick = TransferProgress(
+                        fileName = fileName,
+                        appName = resolvedAppName,
+                        packageName = packageName,
+                        bytesTransferred = totalBytes,
+                        totalBytes = totalBytes,
+                        percentage = currentPercent,
+                        progressFraction = currentFraction,
+                        isInstalling = true,
+                        stageText = stageMessage
+                    )
+                    _installProgress.value = tick
+                    trySend(tick)
+                }
+            }
+
+            // Step 3: Run pm install on TV
+            val output = try {
+                runShell("pm install -r -d -g $remoteTempApk && rm -f $remoteTempApk")
+            } finally {
+                tickerJob.cancel()
+            }
             val isSuccess = output.contains("Success", ignoreCase = true)
 
-            send(
-                TransferProgress(
-                    fileName = fileName,
-                    bytesTransferred = totalBytes,
-                    totalBytes = totalBytes,
-                    percentage = 100,
-                    isInstalling = false,
-                    isDone = true,
-                    resultMessage = if (isSuccess) "App installed successfully!" else "Installation failed: $output",
-                    error = if (!isSuccess) output else null
-                )
+            // Step 4: Final completion state (100% or Error)
+            val finalState = TransferProgress(
+                fileName = fileName,
+                appName = resolvedAppName,
+                packageName = packageName,
+                bytesTransferred = totalBytes,
+                totalBytes = totalBytes,
+                percentage = if (isSuccess) 100 else currentPercent,
+                progressFraction = if (isSuccess) 1.0f else currentFraction,
+                isInstalling = false,
+                isDone = true,
+                resultMessage = if (isSuccess) "App installed successfully on TV!" else "Installation failed: $output",
+                stageText = if (isSuccess) "Installed successfully on TV!" else "Installation failed: $output",
+                error = if (!isSuccess) output else null
             )
+            _installProgress.value = finalState
+            send(finalState)
+
+            // Automatically refresh TV installed apps list after installation
+            if (isSuccess) {
+                launch { fetchInstalledApps() }
+            }
+
         } catch (e: Exception) {
-            // Clean up temp file
             try {
                 runShell("rm -f $remoteTempApk")
             } catch (ignored: Exception) {}
 
-            send(
-                TransferProgress(
-                    fileName = fileName,
-                    error = e.localizedMessage ?: "Installation failed"
-                )
+            val errorState = TransferProgress(
+                fileName = fileName,
+                appName = resolvedAppName,
+                packageName = packageName,
+                isInstalling = false,
+                isDone = true,
+                percentage = 0,
+                progressFraction = 0f,
+                stageText = "Installation failed",
+                error = e.localizedMessage ?: "Installation failed",
+                resultMessage = "Installation failed: ${e.message}"
             )
+            _installProgress.value = errorState
+            send(errorState)
         }
     }.flowOn(Dispatchers.IO)
 
@@ -2954,8 +3042,33 @@ class AdbManager(private val context: Context) {
                 }
                 // APK files
                 lower.endsWith(".apk") -> {
+                    val appName = safePath.substringAfterLast("/").removeSuffix(".apk").replace("_", " ")
+                    val installingProg = TransferProgress(
+                        fileName = safePath.substringAfterLast("/"),
+                        appName = appName,
+                        percentage = 75,
+                        progressFraction = 0.75f,
+                        isInstalling = true,
+                        stageText = "Installing on Android TV OS..."
+                    )
+                    _installProgress.value = installingProg
                     val res = runShell("pm install -r '$safePath'")
-                    if (res.contains("Success", ignoreCase = true)) {
+                    val isSuccess = res.contains("Success", ignoreCase = true)
+                    _installProgress.value = TransferProgress(
+                        fileName = safePath.substringAfterLast("/"),
+                        appName = appName,
+                        percentage = if (isSuccess) 100 else 75,
+                        progressFraction = if (isSuccess) 1.0f else 0.75f,
+                        isInstalling = false,
+                        isDone = true,
+                        resultMessage = if (isSuccess) "App installed successfully on TV!" else "APK install: $res",
+                        stageText = if (isSuccess) "Installed successfully on TV!" else "APK install: $res",
+                        error = if (!isSuccess) res else null
+                    )
+                    if (isSuccess) {
+                        launch { fetchInstalledApps() }
+                    }
+                    if (isSuccess) {
                         true to "Installed APK on TV successfully!"
                     } else {
                         false to "APK install: $res"

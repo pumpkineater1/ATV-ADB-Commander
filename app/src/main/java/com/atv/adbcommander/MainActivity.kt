@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.atv.adbcommander.model.ConnectionState
+import com.atv.adbcommander.ui.components.AppInstallProgressDialog
+import com.atv.adbcommander.ui.components.MinimizedInstallBanner
 import com.atv.adbcommander.ui.components.TvDiscoveryDialog
 import com.atv.adbcommander.ui.screens.*
 import com.atv.adbcommander.ui.theme.*
@@ -487,6 +489,43 @@ class MainActivity : ComponentActivity() {
                             },
                             onDismiss = { showConnectDialog = false }
                         )
+                    }
+
+                    // Continuous App Installation Progress Dialog & Floating Minimized Banner
+                    val installProgress by adbManager.installProgress.collectAsState()
+                    var isInstallProgressMinimized by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(installProgress?.fileName) {
+                        if (installProgress != null && !installProgress!!.isDone) {
+                            isInstallProgressMinimized = false
+                        }
+                    }
+
+                    if (installProgress != null) {
+                        if (!isInstallProgressMinimized) {
+                            AppInstallProgressDialog(
+                                progress = installProgress!!,
+                                onDismiss = { adbManager.dismissInstallProgress() },
+                                onMinimize = { isInstallProgressMinimized = true },
+                                onLaunchOnTv = { pkg ->
+                                    coroutineScope.launch {
+                                        adbManager.launchApp(pkg)
+                                    }
+                                }
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(bottom = 76.dp),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                MinimizedInstallBanner(
+                                    progress = installProgress!!,
+                                    onExpand = { isInstallProgressMinimized = false }
+                                )
+                            }
+                        }
                     }
                 }
             }

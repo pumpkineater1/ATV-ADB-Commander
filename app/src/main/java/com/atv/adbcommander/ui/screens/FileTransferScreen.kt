@@ -200,22 +200,13 @@ fun FileTransferScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        if (progress.isInstalling) {
+                        if (!progress.isDone && progress.error == null) {
                             LinearProgressIndicator(
+                                progress = { progress.progressFraction.coerceIn(0f, 1f) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
-                                color = CyberCyan,
-                                trackColor = DarkSurfaceVariant
-                            )
-                        } else if (!progress.isDone && progress.error == null) {
-                            LinearProgressIndicator(
-                                progress = { (progress.percentage / 100f).coerceIn(0f, 1f) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
                                 color = CyberCyan,
                                 trackColor = DarkSurfaceVariant
                             )
@@ -413,10 +404,14 @@ fun FileTransferScreen(
                                         try {
                                             val stream = context.contentResolver.openInputStream(uri)
                                             if (stream != null) {
-                                                adbManager.installApk(stream, selectedApkSize, selectedApkName)
-                                                    .collectLatest { prog ->
-                                                        transferState = prog
-                                                    }
+                                                adbManager.installApk(
+                                                    inputStream = stream,
+                                                    totalBytes = selectedApkSize,
+                                                    fileName = selectedApkName,
+                                                    appName = selectedApkName.removeSuffix(".apk").replace("_", " ")
+                                                ).collectLatest { prog ->
+                                                    transferState = prog
+                                                }
                                             }
                                         } finally {
                                             isTransferring = false
@@ -674,10 +669,15 @@ fun FileTransferScreen(
                                                         val file = File(app.apkPath)
                                                         if (file.exists()) {
                                                             val stream = FileInputStream(file)
-                                                            adbManager.installApk(stream, app.sizeBytes, "${app.appName}.apk")
-                                                                .collectLatest { prog ->
-                                                                    transferState = prog
-                                                                }
+                                                            adbManager.installApk(
+                                                                inputStream = stream,
+                                                                totalBytes = app.sizeBytes,
+                                                                fileName = "${app.appName}.apk",
+                                                                packageName = app.packageName,
+                                                                appName = app.appName
+                                                            ).collectLatest { prog ->
+                                                                transferState = prog
+                                                            }
                                                         }
                                                     } finally {
                                                         isTransferring = false
@@ -689,13 +689,27 @@ fun FileTransferScreen(
                                             shape = RoundedCornerShape(10.dp),
                                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CloudUpload,
-                                                contentDescription = "Sideload",
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Sideload", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            val isThisAppInstalling = isTransferring && transferState?.packageName == app.packageName
+                                            if (isThisAppInstalling) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    CircularProgressIndicator(
+                                                        progress = { (transferState?.progressFraction ?: 0f).coerceIn(0f, 1f) },
+                                                        modifier = Modifier.size(13.dp),
+                                                        strokeWidth = 2.dp,
+                                                        color = Color.Black
+                                                    )
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("${transferState?.percentage ?: 0}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                                }
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Default.CloudUpload,
+                                                    contentDescription = "Sideload",
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Sideload", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
                                 }

@@ -85,7 +85,11 @@ data class TransferProgress(
     val isInstalling: Boolean = false,
     val isDone: Boolean = false,
     val resultMessage: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val stageText: String = "",
+    val appName: String? = null,
+    val packageName: String? = null,
+    val progressFraction: Float = 0f
 )
 
 data class DiscoveredDevice(

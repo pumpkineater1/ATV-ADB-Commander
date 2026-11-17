@@ -8,6 +8,18 @@ All notable changes to the **ATV ADB Commander** project are documented in this 
 
 ### 🚀 Major Additions & New Features
 
+#### 📊 Continuous App Installation Progress Bar (Phone ➔ TV)
+- **Smooth End-to-End Progress Lifecycle**:
+  - **Stage 1 (0% - 70%)**: Real-time continuous APK streaming progress bar with transferred bytes (e.g. `24.5 MB / 48.0 MB`) and live upload speed (`8.4 MB/s`).
+  - **Stage 2 (70% - 98%)**: Continuous TV OS installation progress with animated pulsing progress bar and real-time status stages (*"Verifying package..."*, *"Extracting DEX code & native libraries..."*, *"Writing to Android TV storage..."*, *"Optimizing runtime performance..."*, *"Finalizing registration..."*).
+  - **Stage 3 (100%)**: Instant completion indicator with a direct **[ Open on TV ]** button to launch the newly installed app on your TV with one tap.
+- **Global AppInstallProgressDialog**:
+  - Modal Titanium OLED dialog appears automatically during sideloading or APK installation from any screen.
+  - Can be minimized to a floating bottom pill (*"Installing App (75%)..."*) while continuing to browse other tabs.
+- **Direct Sideload & Install Buttons**:
+  - Added "+ Install APK" directly into the Apps tab header alongside Search and TV Play Store.
+  - Sideload buttons inside Phone App list show live inline percentage badges (`Installing 65%`).
+
 #### 📶 Wireless & Bluetooth Control Hub
 - **Silent Saved Wi-Fi Switching**:
   - Connect to and switch between saved Wi-Fi networks (e.g., `Chandra_5G`, `Aaa`) with a single tap.

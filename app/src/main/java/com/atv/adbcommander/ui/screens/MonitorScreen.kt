@@ -1,6 +1,9 @@
 package com.atv.adbcommander.ui.screens
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -77,6 +80,41 @@ fun MonitorScreen(
     var recommendations by remember { mutableStateOf<List<DebloatRecommendation>>(emptyList()) }
     var isDisablingRecs by remember { mutableStateOf(false) }
     var isRestoringAll by remember { mutableStateOf(false) }
+
+    val apkPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                try {
+                    adbManager.ensureConnected()
+                    adbManager.wakeTv()
+                    val stream = context.contentResolver.openInputStream(uri)
+                    if (stream != null) {
+                        val cursor = context.contentResolver.query(uri, null, null, null, null)
+                        var size = 0L
+                        var name = "app.apk"
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                val sizeIdx = it.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                                if (nameIdx >= 0) name = it.getString(nameIdx)
+                                if (sizeIdx >= 0) size = it.getLong(sizeIdx)
+                            }
+                        }
+                        adbManager.installApk(
+                            inputStream = stream,
+                            totalBytes = size,
+                            fileName = name,
+                            appName = name.removeSuffix(".apk").replace("_", " ")
+                        ).collect { }
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Install error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     val refreshProcesses = {
         if (isConnected) {
@@ -797,6 +835,33 @@ fun MonitorScreen(
                             unfocusedContainerColor = DarkSurface
                         )
                     )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // + Install APK Button
+                    Surface(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clickable {
+                                try {
+                                    apkPickerLauncher.launch(arrayOf("application/vnd.android.package-archive", "*/*"))
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Could not open file picker: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = DarkCard,
+                        border = BorderStroke(1.dp, CyberCyan.copy(alpha = 0.5f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Install APK from Phone",
+                                tint = CyberCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.width(6.dp))
 
