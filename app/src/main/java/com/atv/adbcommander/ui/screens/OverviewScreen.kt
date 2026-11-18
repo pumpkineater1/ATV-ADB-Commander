@@ -462,7 +462,14 @@ fun OverviewScreen(
                     } else {
                         // Prominent Connect Button
                         Surface(
-                            onClick = onAddDevice,
+                            onClick = {
+                                scope.launch {
+                                    val ok = adbManager.autoConnect()
+                                    if (!ok) {
+                                        onAddDevice()
+                                    }
+                                }
+                            },
                             shape = RoundedCornerShape(20.dp),
                             color = TellyTealDark,
                             border = BorderStroke(1.dp, TellyTealPrimary.copy(alpha = 0.6f)),

@@ -309,7 +309,17 @@ class AdbManager(private val context: Context) {
                     val m = runShell("getprop ro.product.model").trim()
                     val b = runShell("getprop ro.product.brand").trim()
                     val modelName = if (m.isNotEmpty()) "$b $m".trim().replaceFirstChar { it.uppercase() } else "Android TV"
-                    saveDevice(SavedTvDevice(ip = resolvedHost, port = resolvedPort, name = modelName, model = modelName))
+                    val wifi = try { fetchWifiDetails() } catch (e: Exception) { null }
+                    val associatedIpv6 = if (resolvedHost.contains(":")) resolvedHost else (wifi?.ipv6Address ?: "")
+                    saveDevice(
+                        SavedTvDevice(
+                            ip = resolvedHost,
+                            port = resolvedPort,
+                            name = modelName,
+                            model = modelName,
+                            ipv6 = associatedIpv6
+                        )
+                    )
                 } catch (ignored: Exception) {}
                 refreshInstalledApps()
             }
@@ -3201,7 +3211,8 @@ class AdbManager(private val context: Context) {
                         port = parts[1].toIntOrNull() ?: 5555,
                         name = parts[2],
                         model = parts[3],
-                        lastConnected = parts.getOrNull(4)?.toLongOrNull() ?: System.currentTimeMillis()
+                        lastConnected = parts.getOrNull(4)?.toLongOrNull() ?: System.currentTimeMillis(),
+                        ipv6 = parts.getOrNull(5) ?: ""
                     )
                 )
             }
@@ -3216,7 +3227,7 @@ class AdbManager(private val context: Context) {
         current.add(0, updatedDevice)
 
         val raw = current.take(10).joinToString(";;;") {
-            "${it.ip}|||${it.port}|||${it.name}|||${it.model}|||${it.lastConnected}"
+            "${it.ip}|||${it.port}|||${it.name}|||${it.model}|||${it.lastConnected}|||${it.ipv6}"
         }
         prefs.edit()
             .putString("saved_device_list", raw)
@@ -3230,7 +3241,7 @@ class AdbManager(private val context: Context) {
         val current = getSavedDevices().toMutableList()
         current.removeAll { it.ip == ip }
         val raw = current.joinToString(";;;") {
-            "${it.ip}|||${it.port}|||${it.name}|||${it.model}|||${it.lastConnected}"
+            "${it.ip}|||${it.port}|||${it.name}|||${it.model}|||${it.lastConnected}|||${it.ipv6}"
         }
         val edit = prefs.edit().putString("saved_device_list", raw)
         if (prefs.getString("last_connected_ip", "") == ip) {
@@ -3248,22 +3259,65 @@ class AdbManager(private val context: Context) {
             val lastIp = prefs.getString("last_connected_ip", null)?.trim()
             val lastPort = prefs.getInt("last_connected_port", 5555)
 
-            val target = if (!lastIp.isNullOrBlank()) {
-                val saved = getSavedDevices().find { it.ip == lastIp }
-                saved ?: SavedTvDevice(lastIp, lastPort, "Android TV", "TV")
-            } else {
-                getSavedDevices().firstOrNull() ?: SavedTvDevice("192.168.1.40", 5555, "Google TV Streamer", "kirkwood")
+            // 1. Try last connected IP (fast attempt)
+            if (!lastIp.isNullOrBlank()) {
+                try {
+                    Log.d(TAG, "autoConnect: trying last known address $lastIp:$lastPort")
+                    connect(lastIp, lastPort)
+                    if (isConnected()) return@withLock true
+                } catch (e: Exception) {
+                    Log.w(TAG, "autoConnect: last known address $lastIp unreachable: ${e.message}")
+                }
             }
 
+            // 2. Try other saved devices (both IPv4 and saved IPv6 addresses)
+            val savedList = getSavedDevices()
+            for (saved in savedList) {
+                if (saved.ip != lastIp) {
+                    try {
+                        Log.d(TAG, "autoConnect: trying saved device ${saved.ip}:${saved.port}")
+                        connect(saved.ip, saved.port)
+                        if (isConnected()) return@withLock true
+                    } catch (ignored: Exception) {}
+                }
+                if (saved.ipv6.isNotBlank() && saved.ipv6 != lastIp) {
+                    try {
+                        Log.d(TAG, "autoConnect: trying saved IPv6 ${saved.ipv6}:${saved.port}")
+                        connect(saved.ipv6, saved.port)
+                        if (isConnected()) return@withLock true
+                    } catch (ignored: Exception) {}
+                }
+            }
+
+            // 3. Fallback: Dual-stack Auto-Discovery across IPv4 and IPv6!
+            Log.d(TAG, "autoConnect: starting dual-stack auto-discovery...")
+            return@withLock autoDiscoverAndConnectInternal()
+        }
+    }
+
+    suspend fun autoDiscoverAndConnect(): Boolean = withContext(Dispatchers.IO) {
+        connectMutex.withLock {
+            if (isConnected()) return@withLock true
+            autoDiscoverAndConnectInternal()
+        }
+    }
+
+    private suspend fun autoDiscoverAndConnectInternal(): Boolean {
+        _connectionState.value = ConnectionState.Connecting("Searching for TV (IPv4 & IPv6)...")
+        val scanner = com.atv.adbcommander.discovery.TvDiscoveryScanner(context)
+        val device = scanner.findFirstTv(port = 5555, timeoutMs = 8000L)
+        if (device != null) {
+            Log.d(TAG, "autoDiscover: found TV at ${device.ip}:${device.port} (${device.name}), connecting...")
+            _connectionState.value = ConnectionState.Connecting("Discovered ${device.name}! Connecting...")
             try {
-                Log.d(TAG, "autoConnect() initiating connection to ${target.ip}:${target.port}")
-                connect(target.ip, target.port)
-                isConnected()
+                connect(device.ip, device.port)
+                return isConnected()
             } catch (e: Exception) {
-                Log.e(TAG, "autoConnect failed for ${target.ip}: ${e.message}")
-                false
+                Log.e(TAG, "autoDiscover: failed connecting to ${device.ip}: ${e.message}")
             }
         }
+        _connectionState.value = ConnectionState.Disconnected
+        return false
     }
 
     // ==========================================

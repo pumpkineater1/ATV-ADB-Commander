@@ -6,16 +6,21 @@ All notable changes to the **ATV ADB Commander** project are documented in this 
 
 ## [v1.3.0] - 2026-11-19
 
-### 🌐 Full IPv6 Network ADB Support
+### 🌐 Full IPv6 Network ADB & Zero-Touch Dual-Stack Auto-Connect
+- **Zero-Touch Dual-Stack Auto-Discovery & Auto-Connect**:
+  - If a saved IPv4 address is unreachable (e.g. DHCP assigned a new IP or client isolation blocks IPv4), `AdbManager.autoConnect()` automatically initiates dual-stack auto-discovery in the background.
+  - Discovers TV devices over **mDNS / DNS-SD (`NsdManager` for `_adb._tcp`)**, neighbor caches, and parallel subnet scans concurrently.
+  - **Connects automatically to the discovered TV with zero manual typing or user intervention required**.
+  - Stores both the IPv4 and IPv6 addresses for each TV to enable seamless automatic fallback if either protocol becomes unreachable.
 - **Dual-Stack IPv4 & IPv6 ADB Connection Engine**:
   - Native support for Global IPv6 addresses (e.g. `2401:9640:...`), link-local IPv6 (`fe80::...`), and bracketed notations (`[2401:...]:5555`).
   - Automatic Wi-Fi interface scope ID resolution (`fe80::...%wlan0`) preventing socket connection drops.
-- **Enhanced Radar Scanner with IPv6 Neighbor Discovery**:
-  - Scanner automatically queries local IPv6 neighbor tables (`ip -6 neigh`) to discover Android TV devices over IPv6.
+- **Enhanced Radar Scanner with IPv6 & mDNS**:
+  - Scanner simultaneously listens for mDNS service broadcasts, queries local neighbor tables, and scans the local subnet.
   - TV targets display distinctive `IPv6` / `IPv4` badge pills and RFC 5952 formatted addresses.
-- **Direct Manual IP / Host Connect Card**:
-  - Direct manual IP input card in `TvDiscoveryDialog` supporting both IPv4 and IPv6 with one-tap clipboard paste and port configuration.
-  - Saved devices list tracks and displays IPv6 targets with 1-tap re-linking.
+- **One-Tap Quick Connect UI**:
+  - Tapping "Offline · Tap to Connect" or the prominent "Connect TV" button automatically triggers dual-stack network discovery and connects immediately.
+  - Direct manual IP input card remains available for custom port/host configuration without ever requiring manual entry for standard connections.
 - **Live IPv6 Network Telemetry**:
   - Shows active TV IPv6 address in the Wireless & Bluetooth dialog and displays an `IPv6 · Running fine` indicator in the Overview header.
 

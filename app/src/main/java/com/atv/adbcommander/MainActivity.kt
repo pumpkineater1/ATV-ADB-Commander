@@ -162,7 +162,18 @@ class MainActivity : ComponentActivity() {
                                 // Title / Brand
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { showConnectDialog = true }
+                                    modifier = Modifier.clickable {
+                                        if (!isConnected) {
+                                            coroutineScope.launch {
+                                                val ok = adbManager.autoConnect()
+                                                if (!ok) {
+                                                    showConnectDialog = true
+                                                }
+                                            }
+                                        } else {
+                                            showConnectDialog = true
+                                        }
+                                    }
                                 ) {
                                     Box(
                                         modifier = Modifier

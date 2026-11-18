@@ -145,7 +145,8 @@ data class SavedTvDevice(
     val port: Int = 5555,
     val name: String = "Android TV",
     val model: String = "",
-    val lastConnected: Long = System.currentTimeMillis()
+    val lastConnected: Long = System.currentTimeMillis(),
+    val ipv6: String = ""
 ) {
     val isIpv6: Boolean get() = ip.removePrefix("[").removeSuffix("]").contains(":")
     val formattedAddress: String get() = if (isIpv6) "[${ip.removePrefix("[").removeSuffix("]")}]:$port" else "$ip:$port"
