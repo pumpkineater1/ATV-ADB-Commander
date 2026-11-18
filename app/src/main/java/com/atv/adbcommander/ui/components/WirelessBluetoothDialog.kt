@@ -595,6 +595,30 @@ fun WirelessBluetoothDialog(
                                                     Text(if (wifiDetails.frequencyMhz > 5000) "5 GHz" else "2.4 GHz", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TellyOnSurface)
                                                 }
                                             }
+
+                                            if (wifiDetails.ipv6Address.isNotEmpty()) {
+                                                Spacer(Modifier.height(8.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = Color(0xFF00E5FF).copy(alpha = 0.15f),
+                                                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f))
+                                                    ) {
+                                                        Text("IPv6", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                                    }
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(
+                                                        wifiDetails.ipv6Address,
+                                                        fontSize = 11.sp,
+                                                        color = TellyOnSurfaceVariant,
+                                                        maxLines = 1,
+                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

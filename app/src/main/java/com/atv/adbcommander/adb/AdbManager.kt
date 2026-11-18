@@ -266,14 +266,17 @@ class AdbManager(private val context: Context) {
         internalDisconnect()
         isUserDisconnecting = false
 
+        val (resolvedHost, resolvedPort) = com.atv.adbcommander.util.NetworkUtils.parseHostAndPort(host, port)
+        val formattedAddr = com.atv.adbcommander.util.NetworkUtils.formatAddress(resolvedHost, resolvedPort)
+
         // Remember target immediately
         prefs.edit()
-            .putString("last_connected_ip", host)
-            .putInt("last_connected_port", port)
+            .putString("last_connected_ip", resolvedHost)
+            .putInt("last_connected_port", resolvedPort)
             .putBoolean("pref_auto_connect", true)
             .apply()
 
-        _connectionState.value = ConnectionState.Connecting("Connecting to $host:$port...")
+        _connectionState.value = ConnectionState.Connecting("Connecting to $formattedAddr...")
 
         try {
             if (crypto == null) {
@@ -281,8 +284,8 @@ class AdbManager(private val context: Context) {
             }
 
             val conn = AdbConnection(
-                host = host,
-                port = port,
+                host = resolvedHost,
+                port = resolvedPort,
                 crypto = crypto!!,
                 onAuthPromptListener = {
                     _connectionState.value = ConnectionState.Authenticating(
@@ -290,15 +293,15 @@ class AdbManager(private val context: Context) {
                     )
                 },
                 onDisconnectListener = { error ->
-                    handleUnexpectedDisconnect(host, port, error)
+                    handleUnexpectedDisconnect(resolvedHost, resolvedPort, error)
                 }
             )
 
             conn.connect()
             activeConnection = conn
-            _connectionState.value = ConnectionState.Connected(host, port)
+            _connectionState.value = ConnectionState.Connected(resolvedHost, resolvedPort)
             acquireWakeAndWifiLocks("AdbActive")
-            startHeartbeatWatchdog(host, port)
+            startHeartbeatWatchdog(resolvedHost, resolvedPort)
 
             // Auto-detect TV model and refresh apps in background without blocking connect()
             managerScope.launch(Dispatchers.IO) {
@@ -306,7 +309,7 @@ class AdbManager(private val context: Context) {
                     val m = runShell("getprop ro.product.model").trim()
                     val b = runShell("getprop ro.product.brand").trim()
                     val modelName = if (m.isNotEmpty()) "$b $m".trim().replaceFirstChar { it.uppercase() } else "Android TV"
-                    saveDevice(SavedTvDevice(ip = host, port = port, name = modelName, model = modelName))
+                    saveDevice(SavedTvDevice(ip = resolvedHost, port = resolvedPort, name = modelName, model = modelName))
                 } catch (ignored: Exception) {}
                 refreshInstalledApps()
             }
@@ -450,8 +453,9 @@ class AdbManager(private val context: Context) {
             val lastPort = prefs.getInt("last_connected_port", 5555)
 
             if (!lastIp.isNullOrBlank() && !isUserDisconnecting) {
-                Log.i(TAG, "ensureConnected: auto-reconnecting to $lastIp:$lastPort")
-                _connectionState.value = ConnectionState.Connecting("Connecting to $lastIp:$lastPort...")
+                val formattedAddr = com.atv.adbcommander.util.NetworkUtils.formatAddress(lastIp, lastPort)
+                Log.i(TAG, "ensureConnected: auto-reconnecting to $formattedAddr")
+                _connectionState.value = ConnectionState.Connecting("Connecting to $formattedAddr...")
                 try {
                     val conn = AdbConnection(
                         host = lastIp,
@@ -2034,6 +2038,17 @@ class AdbManager(private val context: Context) {
             val freqMatch = Regex("Frequency: ([0-9]+)MHz").find(statusRaw)
             if (freqMatch != null) freq = freqMatch.groupValues[1].toIntOrNull() ?: 0
 
+            var ipv6 = ""
+            try {
+                val ip6Raw = runShell("ip -6 addr show wlan0 2>/dev/null || ip -6 addr show 2>/dev/null")
+                val inet6Lines = ip6Raw.lines().filter { it.trim().startsWith("inet6 ") && !it.contains("::1/128") }
+                val globalIpv6 = inet6Lines.firstOrNull { it.contains("scope global") }
+                    ?.trim()?.removePrefix("inet6 ")?.substringBefore("/")?.trim()
+                val anyIpv6 = inet6Lines.firstOrNull()
+                    ?.trim()?.removePrefix("inet6 ")?.substringBefore("/")?.trim()
+                ipv6 = globalIpv6 ?: anyIpv6 ?: ""
+            } catch (ignored: Exception) {}
+
             val savedList = mutableListOf<TvSavedWifiNetwork>()
             for (line in listNetworksRaw.lines()) {
                 val parts = line.trim().split(Regex("\\s+"))
@@ -2053,6 +2068,7 @@ class AdbManager(private val context: Context) {
                 currentSsid = currentSsid,
                 bssid = "",
                 ipAddress = ip,
+                ipv6Address = ipv6,
                 rssi = rssi,
                 linkSpeedMbps = linkSpeed,
                 frequencyMhz = freq,

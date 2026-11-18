@@ -1,7 +1,7 @@
 # ATV ADB Commander 📺⚡
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/Version-v1.2.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-v1.3.0-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Android%20TV%20%7C%20Google%20TV%20%7C%20Fire%20TV-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
 [![UI](https://img.shields.io/badge/Jetpack%20Compose-Material%203-blue.svg)](https://developer.android.com/jetpack/compose)
@@ -13,11 +13,13 @@
 
 ## 🌟 Key Features
 
-### 1. ⚡ Standalone Pure-Kotlin Wireless ADB Engine
+### 1. ⚡ Standalone Pure-Kotlin Wireless ADB Engine (IPv4 + IPv6)
 - **No PC / Server Required**: Native ADB TCP client implementation directly inside the app.
+- **Full IPv6 & IPv4 Support**: Seamless connection via global IPv6 addresses, link-local (`fe80::...%wlan0`) with automatic interface scoping, and standard IPv4.
+- **Dual-Stack Discovery**: Automatically discovers active TV devices on your local Wi-Fi via IPv4 subnet scan and IPv6 neighbor discovery (`ip -6 neigh`).
+- **Direct IP / Host Card**: One-tap clipboard paste, custom port specification, and saved target persistence.
 - **Secure Authentication**: Built-in 2048-bit RSA keypair generation, token signing (`A_AUTH`), and public key exchange.
 - **TLS ADB Support**: Compatible with Android 11+ wireless debugging standards.
-- **One-Tap Subnet Scanner**: Automatically discovers active TV devices on your local Wi-Fi network (port 5555).
 
 ### 2. 🖤 Titanium OLED Dark Interface & Gestures
 - **Edge-to-Edge Titanium Styling**: High-contrast OLED dark background (`#08090A`) with subtle neon teal & cyan accents.

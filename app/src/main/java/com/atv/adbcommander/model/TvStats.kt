@@ -97,7 +97,10 @@ data class DiscoveredDevice(
     val port: Int = 5555,
     val name: String = "Android TV",
     val isAdbOpen: Boolean = true
-)
+) {
+    val isIpv6: Boolean get() = ip.removePrefix("[").removeSuffix("]").contains(":")
+    val formattedAddress: String get() = if (isIpv6) "[${ip.removePrefix("[").removeSuffix("]")}]:$port" else "$ip:$port"
+}
 
 data class PhoneInstalledApp(
     val appName: String,
@@ -143,7 +146,10 @@ data class SavedTvDevice(
     val name: String = "Android TV",
     val model: String = "",
     val lastConnected: Long = System.currentTimeMillis()
-)
+) {
+    val isIpv6: Boolean get() = ip.removePrefix("[").removeSuffix("]").contains(":")
+    val formattedAddress: String get() = if (isIpv6) "[${ip.removePrefix("[").removeSuffix("]")}]:$port" else "$ip:$port"
+}
 
 data class SleepTimerState(
     val isActive: Boolean = false,
@@ -247,6 +253,7 @@ data class TvWifiDetails(
     val currentSsid: String = "",
     val bssid: String = "",
     val ipAddress: String = "",
+    val ipv6Address: String = "",
     val rssi: Int = -50,
     val linkSpeedMbps: Int = 0,
     val frequencyMhz: Int = 0,

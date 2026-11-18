@@ -481,6 +481,7 @@ class MainActivity : ComponentActivity() {
                     // TV Connect & Discovery Dialog
                     if (showConnectDialog) {
                         TvDiscoveryDialog(
+                            adbManager = adbManager,
                             onDeviceSelected = { ip, port ->
                                 coroutineScope.launch {
                                     adbManager.connect(ip, port)

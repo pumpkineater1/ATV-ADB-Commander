@@ -68,7 +68,8 @@ class AdbConnection(
         s.keepAlive = true
         s.sendBufferSize = 128 * 1024
         s.receiveBufferSize = 128 * 1024
-        s.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+        val targetAddr = com.atv.adbcommander.util.NetworkUtils.resolveSocketAddress(host, port)
+        s.connect(targetAddr, CONNECT_TIMEOUT_MS)
         socket = s
         inputStream = s.getInputStream()
         outputStream = s.getOutputStream()

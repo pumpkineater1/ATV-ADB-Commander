@@ -4,6 +4,23 @@ All notable changes to the **ATV ADB Commander** project are documented in this 
 
 ---
 
+## [v1.3.0] - 2026-11-19
+
+### 🌐 Full IPv6 Network ADB Support
+- **Dual-Stack IPv4 & IPv6 ADB Connection Engine**:
+  - Native support for Global IPv6 addresses (e.g. `2401:9640:...`), link-local IPv6 (`fe80::...`), and bracketed notations (`[2401:...]:5555`).
+  - Automatic Wi-Fi interface scope ID resolution (`fe80::...%wlan0`) preventing socket connection drops.
+- **Enhanced Radar Scanner with IPv6 Neighbor Discovery**:
+  - Scanner automatically queries local IPv6 neighbor tables (`ip -6 neigh`) to discover Android TV devices over IPv6.
+  - TV targets display distinctive `IPv6` / `IPv4` badge pills and RFC 5952 formatted addresses.
+- **Direct Manual IP / Host Connect Card**:
+  - Direct manual IP input card in `TvDiscoveryDialog` supporting both IPv4 and IPv6 with one-tap clipboard paste and port configuration.
+  - Saved devices list tracks and displays IPv6 targets with 1-tap re-linking.
+- **Live IPv6 Network Telemetry**:
+  - Shows active TV IPv6 address in the Wireless & Bluetooth dialog and displays an `IPv6 · Running fine` indicator in the Overview header.
+
+---
+
 ## [v1.2.0] - 2026-11-17
 
 ### 🚀 Major Additions & New Features

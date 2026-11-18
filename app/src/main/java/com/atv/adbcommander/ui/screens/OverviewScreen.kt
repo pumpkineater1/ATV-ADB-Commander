@@ -226,9 +226,15 @@ fun OverviewScreen(
                     textAlign = TextAlign.Center
                 )
 
-                // Maker / Brand Subtitle
+                // Maker / Brand Subtitle with IPv6 indicator
+                val connectedSub = if (isConnected) {
+                    val conn = connectionState as? ConnectionState.Connected
+                    val ipTag = if (conn?.isIpv6 == true) " • IPv6" else ""
+                    "$deviceBrand · Android TV $androidVersion$ipTag"
+                } else "Offline · Connect via ADB"
+
                 Text(
-                    text = if (isConnected) "$deviceBrand · Android TV $androidVersion" else "Offline · Connect via ADB",
+                    text = connectedSub,
                     style = MaterialTheme.typography.bodySmall,
                     color = TellyOnSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -236,8 +242,9 @@ fun OverviewScreen(
 
                 Spacer(Modifier.height(8.dp))
 
-                // TV Status Chip ("Running fine" or "TV Asleep • Tap to Wake Up")
+                // TV Status Chip ("Running fine", "Running fine • IPv6", or "TV Asleep • Tap to Wake Up")
                 if (isConnected) {
+                    val conn = connectionState as? ConnectionState.Connected
                     if (isTvSleeping) {
                         Surface(
                             onClick = {
@@ -271,7 +278,7 @@ fun OverviewScreen(
                         }
                     } else {
                         TellyStatusChip(
-                            text = "Running fine",
+                            text = if (conn?.isIpv6 == true) "Running fine · IPv6" else "Running fine",
                             icon = Icons.Default.CheckCircle,
                             color = TellySuccess,
                             containerColor = TellySuccessContainer
