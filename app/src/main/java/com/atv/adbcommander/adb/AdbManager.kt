@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -162,8 +163,6 @@ class AdbManager(private val context: Context) {
         return dir
     }
 
-    private fun getAppsCacheFile(): File = File(context.filesDir, "cached_tv_apps.json")
-
     private fun loadIconFromDisk(packageName: String): ByteArray? {
         val cached = iconCache[packageName]
         if (cached != null) return cached
@@ -190,10 +189,32 @@ class AdbManager(private val context: Context) {
         }
     }
 
-    private fun loadCachedAppsFromDisk() {
+    private fun getAppsCacheFile(target: String? = null): File {
+        if (target.isNullOrBlank()) {
+            return File(context.filesDir, "cached_tv_apps.json")
+        }
+        val safeKey = target.replace(Regex("[^a-zA-Z0-9_]"), "_")
+        return File(context.filesDir, "cached_tv_apps_$safeKey.json")
+    }
+
+    fun loadCachedAppsForTarget(target: String) {
         try {
-            val file = getAppsCacheFile()
-            if (!file.exists() || file.length() == 0L) return
+            val file = getAppsCacheFile(target)
+            if (file.exists() && file.length() > 0L) {
+                loadCachedAppsFromFile(file)
+            } else {
+                val legacy = File(context.filesDir, "cached_tv_apps.json")
+                if (legacy.exists() && legacy.length() > 0L) {
+                    loadCachedAppsFromFile(legacy)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error loading target cache: ${e.message}")
+        }
+    }
+
+    private fun loadCachedAppsFromFile(file: File) {
+        try {
             val jsonArray = JSONArray(file.readText())
             val list = mutableListOf<TvAppInfo>()
             for (i in 0 until jsonArray.length()) {
@@ -229,6 +250,15 @@ class AdbManager(private val context: Context) {
         }
     }
 
+    private fun loadCachedAppsFromDisk() {
+        val lastIp = prefs.getString("last_connected_ip", null)
+        if (!lastIp.isNullOrBlank()) {
+            loadCachedAppsForTarget(lastIp)
+        } else {
+            loadCachedAppsFromFile(getAppsCacheFile())
+        }
+    }
+
     private fun saveCachedAppsToDisk(apps: List<TvAppInfo>) {
         if (apps.isEmpty()) return
         try {
@@ -244,7 +274,12 @@ class AdbManager(private val context: Context) {
                 obj.put("b", app.brandColorHex)
                 array.put(obj)
             }
-            getAppsCacheFile().writeText(array.toString())
+            val text = array.toString()
+            getAppsCacheFile().writeText(text)
+            val host = activeConnection?.host
+            if (!host.isNullOrBlank()) {
+                getAppsCacheFile(host).writeText(text)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Error saving cached apps to disk: ${e.message}")
         }
@@ -263,70 +298,104 @@ class AdbManager(private val context: Context) {
      * Connects to Android TV over ADB network.
      */
     suspend fun connect(host: String, port: Int = 5555) = withContext(Dispatchers.IO) {
-        internalDisconnect()
-        isUserDisconnecting = false
+        connectMutex.withLock {
+            // Signal intentional user disconnect to prevent reconnect loops on old device
+            isUserDisconnecting = true
+            internalDisconnect()
+            isUserDisconnecting = false
 
-        val (resolvedHost, resolvedPort) = com.atv.adbcommander.util.NetworkUtils.parseHostAndPort(host, port)
-        val formattedAddr = com.atv.adbcommander.util.NetworkUtils.formatAddress(resolvedHost, resolvedPort)
+            val (resolvedHost, resolvedPort) = com.atv.adbcommander.util.NetworkUtils.parseHostAndPort(host, port)
+            val formattedAddr = com.atv.adbcommander.util.NetworkUtils.formatAddress(resolvedHost, resolvedPort)
 
-        // Remember target immediately
-        prefs.edit()
-            .putString("last_connected_ip", resolvedHost)
-            .putInt("last_connected_port", resolvedPort)
-            .putBoolean("pref_auto_connect", true)
-            .apply()
+            // Remember target immediately
+            prefs.edit()
+                .putString("last_connected_ip", resolvedHost)
+                .putInt("last_connected_port", resolvedPort)
+                .putBoolean("pref_auto_connect", true)
+                .apply()
 
-        _connectionState.value = ConnectionState.Connecting("Connecting to $formattedAddr...")
+            _connectionState.value = ConnectionState.Connecting("Connecting to $formattedAddr...")
 
-        try {
-            if (crypto == null) {
-                crypto = AdbCrypto.loadOrGenerate(context)
-            }
+            // Instantly load cached apps for this target so UI populates in 0ms
+            loadCachedAppsForTarget(resolvedHost)
 
-            val conn = AdbConnection(
-                host = resolvedHost,
-                port = resolvedPort,
-                crypto = crypto!!,
-                onAuthPromptListener = {
-                    _connectionState.value = ConnectionState.Authenticating(
-                        "Please check your TV screen and select 'Always allow' / 'OK' on the USB debugging prompt."
-                    )
-                },
-                onDisconnectListener = { error ->
-                    handleUnexpectedDisconnect(resolvedHost, resolvedPort, error)
+            try {
+                if (crypto == null) {
+                    crypto = AdbCrypto.loadOrGenerate(context)
                 }
-            )
 
-            conn.connect()
-            activeConnection = conn
-            _connectionState.value = ConnectionState.Connected(resolvedHost, resolvedPort)
-            acquireWakeAndWifiLocks("AdbActive")
-            startHeartbeatWatchdog(resolvedHost, resolvedPort)
-
-            // Auto-detect TV model and refresh apps in background without blocking connect()
-            managerScope.launch(Dispatchers.IO) {
-                try {
-                    val m = runShell("getprop ro.product.model").trim()
-                    val b = runShell("getprop ro.product.brand").trim()
-                    val modelName = if (m.isNotEmpty()) "$b $m".trim().replaceFirstChar { it.uppercase() } else "Android TV"
-                    val wifi = try { fetchWifiDetails() } catch (e: Exception) { null }
-                    val associatedIpv6 = if (resolvedHost.contains(":")) resolvedHost else (wifi?.ipv6Address ?: "")
-                    saveDevice(
-                        SavedTvDevice(
-                            ip = resolvedHost,
-                            port = resolvedPort,
-                            name = modelName,
-                            model = modelName,
-                            ipv6 = associatedIpv6
+                val conn = AdbConnection(
+                    host = resolvedHost,
+                    port = resolvedPort,
+                    crypto = crypto!!,
+                    onAuthPromptListener = {
+                        _connectionState.value = ConnectionState.Authenticating(
+                            "Please check your TV screen and select 'Always allow' / 'OK' on the USB debugging prompt."
                         )
-                    )
-                } catch (ignored: Exception) {}
-                refreshInstalledApps()
+                    },
+                    onDisconnectListener = { error ->
+                        handleUnexpectedDisconnect(resolvedHost, resolvedPort, error)
+                    }
+                )
+
+                conn.connect()
+                activeConnection = conn
+                _connectionState.value = ConnectionState.Connected(resolvedHost, resolvedPort)
+                acquireWakeAndWifiLocks("AdbActive")
+                startHeartbeatWatchdog(resolvedHost, resolvedPort)
+
+                // Quick metadata fetch in background (non-blocking)
+                managerScope.launch(Dispatchers.IO) {
+                    try {
+                        val m = runShell("getprop ro.product.model").trim()
+                        val b = runShell("getprop ro.product.brand").trim()
+                        val modelName = if (m.isNotEmpty()) "$b $m".trim().replaceFirstChar { it.uppercase() } else "Android TV"
+                        val existingSaved = getSavedDevices().find { it.ip == resolvedHost }
+                        val associatedIpv6 = if (resolvedHost.contains(":")) resolvedHost else (existingSaved?.ipv6 ?: "")
+                        saveDevice(
+                            SavedTvDevice(
+                                ip = resolvedHost,
+                                port = resolvedPort,
+                                name = modelName,
+                                model = modelName,
+                                ipv6 = associatedIpv6
+                            )
+                        )
+                    } catch (ignored: Exception) {}
+
+                    // Refresh apps in background with low priority after overview telemetry loads
+                    delay(350L)
+                    refreshInstalledApps()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Connection failed: ${e.message}", e)
+                _connectionState.value = ConnectionState.Error(e.localizedMessage ?: "Failed to connect")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Connection failed: ${e.message}", e)
-            _connectionState.value = ConnectionState.Error(e.localizedMessage ?: "Failed to connect")
         }
+    }
+
+    /**
+     * Rapidly switches connection to a specific saved device (e.g. Google TV Streamer or Fire TV Max).
+     * Tries primary address, falls back to saved IPv6, then auto-discovers if IP changed.
+     */
+    suspend fun switchToDevice(device: SavedTvDevice) = withContext(Dispatchers.IO) {
+        Log.i(TAG, "switchToDevice: initiating fast switch to ${device.name} (${device.ip})")
+        _connectionState.value = ConnectionState.Connecting("Connecting to ${device.name}...")
+
+        // 1. Try primary address
+        connect(device.ip, device.port)
+        if (isConnected()) return@withContext
+
+        // 2. Try alternative IPv6 address if primary failed
+        if (device.ipv6.isNotBlank() && device.ipv6 != device.ip) {
+            Log.i(TAG, "switchToDevice: primary unreachable, trying IPv6 ${device.ipv6}")
+            connect(device.ipv6, device.port)
+            if (isConnected()) return@withContext
+        }
+
+        // 3. Fallback to dual-stack network auto-discovery
+        Log.i(TAG, "switchToDevice: saved addresses unreachable, running network discovery...")
+        autoDiscoverAndConnect()
     }
 
     private fun startHeartbeatWatchdog(host: String, port: Int) {
@@ -350,10 +419,18 @@ class AdbManager(private val context: Context) {
         }
     }
 
+    private var reconnectJob: kotlinx.coroutines.Job? = null
+
     private fun handleUnexpectedDisconnect(host: String, port: Int, error: Throwable?) {
         if (isUserDisconnecting) return
+        val current = activeConnection
+        if (current != null && current.host != host) {
+            Log.d(TAG, "Ignoring disconnect from $host:$port because active connection is ${current.host}")
+            return
+        }
         if (isReconnecting.compareAndSet(false, true)) {
-            managerScope.launch(Dispatchers.IO) {
+            reconnectJob?.cancel()
+            reconnectJob = managerScope.launch(Dispatchers.IO) {
                 Log.w(TAG, "Unexpected ADB disconnect from $host:$port (${error?.message}). Starting seamless reconnect...")
                 _connectionState.value = ConnectionState.Connecting("Connection interrupted. Reconnecting to $host...")
 
@@ -430,6 +507,9 @@ class AdbManager(private val context: Context) {
     private fun internalDisconnect() {
         heartbeatJob?.cancel()
         heartbeatJob = null
+        reconnectJob?.cancel()
+        reconnectJob = null
+        isReconnecting.set(false)
         try {
             fastRemoteStream?.close()
         } catch (ignored: Exception) {}
@@ -441,7 +521,8 @@ class AdbManager(private val context: Context) {
         releaseWakeAndWifiLocks()
     }
 
-    private val shellMutex = kotlinx.coroutines.sync.Mutex()
+    // High-concurrency semaphore allowing up to 8 concurrent logical ADB streams
+    private val shellSemaphore = kotlinx.coroutines.sync.Semaphore(8)
 
     /**
      * Ensures an active ADB connection is ready.
@@ -498,9 +579,9 @@ class AdbManager(private val context: Context) {
 
     /**
      * Executes an ADB shell command and returns the output.
-     * Automatically ensures active connection.
+     * Multiplexes logical ADB streams concurrently without serial bottlenecking.
      */
-    suspend fun runShell(command: String): String = shellMutex.withLock {
+    suspend fun runShell(command: String): String = shellSemaphore.withPermit {
         withContext(Dispatchers.IO) {
             val conn = ensureConnected()
             val stream = conn.openStream("shell:$command")

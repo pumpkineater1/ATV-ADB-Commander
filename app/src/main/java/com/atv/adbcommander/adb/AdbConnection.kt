@@ -49,6 +49,7 @@ class AdbConnection(
 
     private val isConnected = AtomicBoolean(false)
     private val isClosed = AtomicBoolean(false)
+    private val hasPromptedAuth = AtomicBoolean(false)
     private var connectionThread: Thread? = null
 
     private val connectLatch = CountDownLatch(1)
@@ -82,10 +83,23 @@ class AdbConnection(
         // Send initial CNXN packet
         sendMessage(AdbProtocol.createConnectMessage(maxData))
 
-        // Wait for connection handshake to complete (or fail)
-        if (!connectLatch.await(45, TimeUnit.SECONDS)) {
-            close()
-            throw IOException("Handshake timeout connecting to $host:$port")
+        // Wait for connection handshake to complete (or fail).
+        // If already paired, handshake completes in < 150ms.
+        // We only wait up to 45s if the TV actually prompted for authorization.
+        val waitStart = System.currentTimeMillis()
+        while (!connectLatch.await(400, TimeUnit.MILLISECONDS)) {
+            val elapsed = System.currentTimeMillis() - waitStart
+            if (hasPromptedAuth.get()) {
+                if (elapsed > 45000L) {
+                    close()
+                    throw IOException("Auth timeout: TV prompt not accepted ($host:$port)")
+                }
+            } else {
+                if (elapsed > 6000L) {
+                    close()
+                    throw IOException("Handshake timeout connecting to $host:$port")
+                }
+            }
         }
 
         if (!isConnected.get()) {
@@ -118,6 +132,7 @@ class AdbConnection(
                                 sendMessage(AdbProtocol.createAuthMessage(AdbProtocol.AUTH_TYPE_SIGNATURE, signature))
                             } else {
                                 // Device rejected signature (not yet paired), send public key and prompt TV user
+                                hasPromptedAuth.set(true)
                                 onAuthPromptListener?.invoke()
                                 val pubKey = crypto.getAdbPublicKeyPayload()
                                 sendMessage(AdbProtocol.createAuthMessage(AdbProtocol.AUTH_TYPE_RSA_PUBLIC, pubKey))

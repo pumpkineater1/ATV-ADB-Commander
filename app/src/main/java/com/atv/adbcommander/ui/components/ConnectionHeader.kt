@@ -445,9 +445,7 @@ fun ConnectionHeader(
                             modifier = Modifier.clickable {
                                 ipAddress = dev.ip
                                 portText = dev.port.toString()
-                                if (!isConnected && !isConnecting) {
-                                    onConnect(dev.ip, dev.port)
-                                }
+                                onConnect(dev.ip, dev.port)
                             }
                         ) {
                             Row(

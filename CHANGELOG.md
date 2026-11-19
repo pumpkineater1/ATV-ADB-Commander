@@ -4,6 +4,27 @@ All notable changes to the **ATV ADB Commander** project are documented in this 
 
 ---
 
+## [v1.3.1] - 2026-11-20
+
+### ⚡ Ultra-Fast TV Switching & High-Concurrency ADB Streams
+- **1-Tap TV Switcher in Overview Screen**:
+  - Automatically displays a sleek horizontal switcher row in the hero banner whenever multiple TVs are saved (e.g. Google TV Streamer and Fire TV Stick 4K Max).
+  - Tap any saved TV pill to switch immediately without disconnecting, waiting, or re-scanning.
+  - Active TV is badged with a vibrant `• Active` glowing indicator.
+- **Concurrent ADB Multiplexing (Semaphore Upgrade)**:
+  - Replaced the global single-command lock (`shellMutex`) with a high-concurrency 8-permit `Semaphore(8)`.
+  - Overview telemetry, CPU/RAM live monitoring, and installed apps now execute concurrently across independent ADB streams instead of queuing single-file for 10–15 seconds.
+- **Per-Device Target-Keyed App Caching**:
+  - Saved TV package lists and app metadata are keyed by target device (`cached_tv_apps_$safeKey.json`).
+  - Switching between Google TV Streamer and Fire TV Max renders the complete apps list instantly in 0ms without re-running heavy `pm list packages` and `app_process` helper scripts.
+- **Eliminated Disconnect Race Conditions**:
+  - Switching TVs now cleanly flags intentional user disconnect and cancels background reconnect watchdog jobs (`reconnectJob`), preventing the app from attempting to reconnect to the old TV while simultaneously connecting to the new one.
+- **Optimized Handshake & Telemetry Hand-off**:
+  - Reduced connection handshake latency to <150ms for already-paired devices with an adaptive 6s timeout (only waiting up to 45s if the TV OS prompts for authorization).
+  - Background Wi-Fi probing is deferred until opening the Wireless dialog, keeping initial TV connection crisp and lightweight.
+
+---
+
 ## [v1.3.0] - 2026-11-19
 
 ### 🌐 Full IPv6 Network ADB & Zero-Touch Dual-Stack Auto-Connect

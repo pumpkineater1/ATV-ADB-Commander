@@ -495,7 +495,12 @@ class MainActivity : ComponentActivity() {
                             adbManager = adbManager,
                             onDeviceSelected = { ip, port ->
                                 coroutineScope.launch {
-                                    adbManager.connect(ip, port)
+                                    val matched = adbManager.getSavedDevices().find { it.ip == ip || it.ipv6 == ip }
+                                    if (matched != null) {
+                                        adbManager.switchToDevice(matched)
+                                    } else {
+                                        adbManager.connect(ip, port)
+                                    }
                                 }
                                 showConnectDialog = false
                             },

@@ -240,6 +240,70 @@ fun OverviewScreen(
                     textAlign = TextAlign.Center
                 )
 
+                // Quick One-Tap TV Switcher Row when multiple saved TVs exist (e.g. Google Streamer & Fire TV Max)
+                val savedTvs = remember(connectionState) { adbManager.getSavedDevices() }
+                if (savedTvs.size > 1) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        savedTvs.forEach { dev ->
+                            val activeConn = connectionState as? ConnectionState.Connected
+                            val isActiveTarget = isConnected && (dev.ip == activeConn?.host || dev.ipv6 == activeConn?.host)
+                            Surface(
+                                onClick = {
+                                    if (!isActiveTarget) {
+                                        scope.launch {
+                                            adbManager.switchToDevice(dev)
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isActiveTarget) TellyTealDark.copy(alpha = 0.5f) else TellySurfaceContainerHigh,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isActiveTarget) TellyTealPrimary.copy(alpha = 0.8f) else TellyOutlineSubtle
+                                ),
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .height(30.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isActiveTarget) TellySuccess else TellyOnSurfaceVariant.copy(alpha = 0.6f))
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = if (dev.name.isNotBlank()) dev.name else dev.model.ifEmpty { "TV" },
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isActiveTarget) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isActiveTarget) TellyTealGlow else TellyOnSurfaceVariant
+                                    )
+                                    if (isActiveTarget) {
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "• Active",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TellySuccess
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(8.dp))
 
                 // TV Status Chip ("Running fine", "Running fine • IPv6", or "TV Asleep • Tap to Wake Up")
