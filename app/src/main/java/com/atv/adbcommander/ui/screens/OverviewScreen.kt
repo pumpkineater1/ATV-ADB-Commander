@@ -156,6 +156,22 @@ fun OverviewScreen(
         }
     }
 
+    val liveTelemetry by adbManager.overviewTelemetry.collectAsState()
+
+    LaunchedEffect(liveTelemetry) {
+        if (liveTelemetry.model.isNotEmpty()) deviceModel = liveTelemetry.model
+        if (liveTelemetry.brand.isNotEmpty()) deviceBrand = liveTelemetry.brand
+        if (liveTelemetry.androidVersion.isNotEmpty()) androidVersion = liveTelemetry.androidVersion
+        if (liveTelemetry.securityPatch.isNotEmpty()) securityPatch = liveTelemetry.securityPatch
+        if (liveTelemetry.currentLauncherName.isNotEmpty()) currentLauncherName = liveTelemetry.currentLauncherName
+        if (liveTelemetry.storage.total.isNotEmpty()) storageInfo = liveTelemetry.storage
+        if (liveTelemetry.memory.totalMb > 0) memoryInfo = liveTelemetry.memory
+        cpuInfo = CpuInfo(totalUsagePercent = liveTelemetry.cpuPercent)
+        val recs = adbManager.getModelDebloatRecommendations(liveTelemetry.brand, liveTelemetry.model)
+        debloatCount = recs.size
+        debloatDisabledCount = disabledCount
+    }
+
     // Load Live Device Telemetry in 1 lightning-fast combined ADB roundtrip
     fun refreshData() {
         if (!isConnected) return
@@ -163,23 +179,7 @@ fun OverviewScreen(
             isRefreshing = true
             try {
                 withContext(Dispatchers.IO) {
-                    val tel = adbManager.fetchOverviewTelemetry()
-                    val recs = adbManager.getModelDebloatRecommendations()
-                    val launchers = adbManager.fetchInstalledLaunchers()
-                    val defaultLauncher = launchers.firstOrNull { it.isCurrentDefault }?.name ?: "Google TV Home"
-
-                    withContext(Dispatchers.Main) {
-                        deviceModel = tel.model
-                        deviceBrand = tel.brand
-                        androidVersion = tel.androidVersion
-                        securityPatch = tel.securityPatch
-                        currentLauncherName = defaultLauncher
-                        debloatCount = recs.size
-                        debloatDisabledCount = disabledCount
-                        storageInfo = tel.storage
-                        cpuInfo = CpuInfo(totalUsagePercent = tel.cpuPercent)
-                        memoryInfo = tel.memory
-                    }
+                    adbManager.fetchOverviewTelemetry()
                 }
             } catch (e: Exception) {
                 // Ignore transient adb errors
@@ -191,9 +191,10 @@ fun OverviewScreen(
 
     LaunchedEffect(isConnected) {
         if (isConnected) {
+            refreshData()
             while (isActive && isConnected) {
-                refreshData()
                 delay(7000L)
+                refreshData()
             }
         }
     }
@@ -241,7 +242,7 @@ fun OverviewScreen(
                 )
 
                 // Quick One-Tap TV Switcher Row when multiple saved TVs exist (e.g. Google Streamer & Fire TV Max)
-                val savedTvs = remember(connectionState) { adbManager.getSavedDevices() }
+                val savedTvs by adbManager.savedDevices.collectAsState()
                 if (savedTvs.size > 1) {
                     Spacer(Modifier.height(8.dp))
                     Row(

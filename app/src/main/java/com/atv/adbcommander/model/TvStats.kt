@@ -191,7 +191,8 @@ data class OverviewTelemetry(
     val securityPatch: String = "May 2023",
     val storage: StorageInfo = StorageInfo(),
     val memory: MemoryInfo = MemoryInfo(),
-    val cpuPercent: Int = 18
+    val cpuPercent: Int = 18,
+    val currentLauncherName: String = "Google TV Home"
 )
 
 data class AppNetworkUsage(

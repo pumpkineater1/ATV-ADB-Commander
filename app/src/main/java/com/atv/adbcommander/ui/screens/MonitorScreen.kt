@@ -182,7 +182,7 @@ fun MonitorScreen(
             .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
         if (!isConnected) {
-            val savedList = remember(isConnected) { adbManager.getSavedDevices() }
+            val savedList by adbManager.savedDevices.collectAsState()
             val targetDevice = savedList.firstOrNull()
             val targetIp = targetDevice?.ip ?: "Android TV"
             val targetPort = targetDevice?.port ?: 5555

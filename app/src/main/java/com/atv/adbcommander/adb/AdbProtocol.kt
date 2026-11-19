@@ -79,13 +79,15 @@ object AdbProtocol {
             bb.putInt(calculateChecksum(payload))
             bb.putInt(command xor -0x1)
 
-            synchronized(outputStream) {
+            if (payload.isEmpty()) {
                 outputStream.write(bb.array())
-                if (payload.isNotEmpty()) {
-                    outputStream.write(payload)
-                }
-                outputStream.flush()
+            } else {
+                val fullPacket = ByteArray(24 + payload.size)
+                System.arraycopy(bb.array(), 0, fullPacket, 0, 24)
+                System.arraycopy(payload, 0, fullPacket, 24, payload.size)
+                outputStream.write(fullPacket)
             }
+            outputStream.flush()
         }
     }
 

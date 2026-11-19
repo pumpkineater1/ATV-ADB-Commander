@@ -47,7 +47,7 @@ fun TvDiscoveryDialog(
     val coroutineScope = rememberCoroutineScope()
 
     val discoveredDevices = remember { mutableStateListOf<DiscoveredDevice>() }
-    var savedDevices by remember { mutableStateOf(adbManager?.getSavedDevices() ?: emptyList()) }
+    val savedDevices by (adbManager?.savedDevices?.collectAsState() ?: remember { mutableStateOf(emptyList()) })
     var isScanning by remember { mutableStateOf(true) }
 
     // Direct Manual IP Connection Input (Supports IPv4 and IPv6)
@@ -543,7 +543,6 @@ fun TvDiscoveryDialog(
                                         IconButton(
                                             onClick = {
                                                 adbManager.removeSavedDevice(device.ip)
-                                                savedDevices = adbManager.getSavedDevices()
                                             },
                                             modifier = Modifier.size(28.dp)
                                         ) {

@@ -56,9 +56,7 @@ fun ConnectionHeader(
     var showPowerToolsDialog by remember { mutableStateOf(false) }
     var showSmartHubDialog by remember { mutableStateOf(false) }
     var autoConnectEnabled by remember { mutableStateOf(adbManager?.isAutoConnectEnabled() ?: true) }
-    var savedDevices by remember(connectionState) {
-        mutableStateOf(adbManager?.getSavedDevices() ?: emptyList())
-    }
+    val savedDevices by (adbManager?.savedDevices?.collectAsState() ?: remember { mutableStateOf(emptyList()) })
 
     val isConnected = connectionState is ConnectionState.Connected
     val isConnecting = connectionState is ConnectionState.Connecting || connectionState is ConnectionState.Authenticating
@@ -480,7 +478,6 @@ fun ConnectionHeader(
                                         .size(14.dp)
                                         .clickable {
                                             adbManager?.removeSavedDevice(dev.ip)
-                                            savedDevices = adbManager?.getSavedDevices() ?: emptyList()
                                         },
                                     tint = TextMuted
                                 )

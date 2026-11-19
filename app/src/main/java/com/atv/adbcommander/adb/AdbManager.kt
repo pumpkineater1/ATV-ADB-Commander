@@ -80,6 +80,8 @@ class AdbManager(private val context: Context) {
         const val KEYCODE_NUM_9 = 16
     }
 
+    private val prefs = context.getSharedPreferences("atv_saved_devices", Context.MODE_PRIVATE)
+
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState
 
@@ -103,6 +105,12 @@ class AdbManager(private val context: Context) {
 
     private val _installedApps = MutableStateFlow<List<TvAppInfo>>(emptyList())
     val installedApps: StateFlow<List<TvAppInfo>> = _installedApps.asStateFlow()
+
+    private val _savedDevices = MutableStateFlow<List<SavedTvDevice>>(emptyList())
+    val savedDevices: StateFlow<List<SavedTvDevice>> = _savedDevices.asStateFlow()
+
+    private val _overviewTelemetry = MutableStateFlow(OverviewTelemetry())
+    val overviewTelemetry: StateFlow<OverviewTelemetry> = _overviewTelemetry.asStateFlow()
 
     private val _isLoadingApps = MutableStateFlow(false)
     val isLoadingApps: StateFlow<Boolean> = _isLoadingApps.asStateFlow()
@@ -250,10 +258,73 @@ class AdbManager(private val context: Context) {
         }
     }
 
+    fun loadCachedTelemetryForTarget(target: String) {
+        try {
+            val safeKey = target.replace(Regex("[^a-zA-Z0-9_]"), "_")
+            val file = File(context.filesDir, "cached_tv_telemetry_$safeKey.json")
+            if (file.exists() && file.length() > 0) {
+                val obj = JSONObject(file.readText())
+                val tel = OverviewTelemetry(
+                    model = obj.optString("model", "Android TV"),
+                    brand = obj.optString("brand", "Google TV"),
+                    androidVersion = obj.optString("androidVersion", "11"),
+                    securityPatch = obj.optString("securityPatch", "May 2023"),
+                    storage = StorageInfo(
+                        filesystem = obj.optString("st_fs", ""),
+                        total = obj.optString("st_total", ""),
+                        used = obj.optString("st_used", ""),
+                        available = obj.optString("st_avail", ""),
+                        usePercent = obj.optString("st_pct", "")
+                    ),
+                    memory = MemoryInfo(
+                        totalMb = obj.optLong("mem_total", 0L),
+                        usedMb = obj.optLong("mem_used", 0L),
+                        freeMb = obj.optLong("mem_free", 0L),
+                        cachedMb = obj.optLong("mem_cached", 0L),
+                        usedPercent = obj.optInt("mem_pct", 0)
+                    ),
+                    cpuPercent = obj.optInt("cpuPercent", 18),
+                    currentLauncherName = obj.optString("launcher", "Google TV Home")
+                )
+                _overviewTelemetry.value = tel
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error loading cached telemetry: ${e.message}")
+        }
+    }
+
+    private fun saveCachedTelemetryForTarget(target: String, tel: OverviewTelemetry) {
+        try {
+            val safeKey = target.replace(Regex("[^a-zA-Z0-9_]"), "_")
+            val file = File(context.filesDir, "cached_tv_telemetry_$safeKey.json")
+            val obj = JSONObject()
+            obj.put("model", tel.model)
+            obj.put("brand", tel.brand)
+            obj.put("androidVersion", tel.androidVersion)
+            obj.put("securityPatch", tel.securityPatch)
+            obj.put("cpuPercent", tel.cpuPercent)
+            obj.put("launcher", tel.currentLauncherName)
+            obj.put("st_fs", tel.storage.filesystem)
+            obj.put("st_total", tel.storage.total)
+            obj.put("st_used", tel.storage.used)
+            obj.put("st_avail", tel.storage.available)
+            obj.put("st_pct", tel.storage.usePercent)
+            obj.put("mem_total", tel.memory.totalMb)
+            obj.put("mem_used", tel.memory.usedMb)
+            obj.put("mem_free", tel.memory.freeMb)
+            obj.put("mem_cached", tel.memory.cachedMb)
+            obj.put("mem_pct", tel.memory.usedPercent)
+            file.writeText(obj.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "Error saving cached telemetry: ${e.message}")
+        }
+    }
+
     private fun loadCachedAppsFromDisk() {
         val lastIp = prefs.getString("last_connected_ip", null)
         if (!lastIp.isNullOrBlank()) {
             loadCachedAppsForTarget(lastIp)
+            loadCachedTelemetryForTarget(lastIp)
         } else {
             loadCachedAppsFromFile(getAppsCacheFile())
         }
@@ -291,6 +362,7 @@ class AdbManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing AdbCrypto: ${e.message}")
         }
+        _savedDevices.value = getSavedDevices()
         loadCachedAppsFromDisk()
     }
 
@@ -299,78 +371,84 @@ class AdbManager(private val context: Context) {
      */
     suspend fun connect(host: String, port: Int = 5555) = withContext(Dispatchers.IO) {
         connectMutex.withLock {
-            // Signal intentional user disconnect to prevent reconnect loops on old device
-            isUserDisconnecting = true
-            internalDisconnect()
-            isUserDisconnecting = false
+            internalConnect(host, port)
+        }
+    }
 
-            val (resolvedHost, resolvedPort) = com.atv.adbcommander.util.NetworkUtils.parseHostAndPort(host, port)
-            val formattedAddr = com.atv.adbcommander.util.NetworkUtils.formatAddress(resolvedHost, resolvedPort)
+    private suspend fun internalConnect(host: String, port: Int = 5555) {
+        // Signal intentional user disconnect to prevent reconnect loops on old device
+        isUserDisconnecting = true
+        internalDisconnect()
+        isUserDisconnecting = false
 
-            // Remember target immediately
-            prefs.edit()
-                .putString("last_connected_ip", resolvedHost)
-                .putInt("last_connected_port", resolvedPort)
-                .putBoolean("pref_auto_connect", true)
-                .apply()
+        val (resolvedHost, resolvedPort) = com.atv.adbcommander.util.NetworkUtils.parseHostAndPort(host, port)
+        val formattedAddr = com.atv.adbcommander.util.NetworkUtils.formatAddress(resolvedHost, resolvedPort)
 
-            _connectionState.value = ConnectionState.Connecting("Connecting to $formattedAddr...")
+        Log.i(TAG, "internalConnect: connecting to $formattedAddr")
 
-            // Instantly load cached apps for this target so UI populates in 0ms
-            loadCachedAppsForTarget(resolvedHost)
+        // Remember target immediately
+        prefs.edit()
+            .putString("last_connected_ip", resolvedHost)
+            .putInt("last_connected_port", resolvedPort)
+            .putBoolean("pref_auto_connect", true)
+            .apply()
 
-            try {
-                if (crypto == null) {
-                    crypto = AdbCrypto.loadOrGenerate(context)
-                }
+        _connectionState.value = ConnectionState.Connecting("Connecting to $formattedAddr...")
 
-                val conn = AdbConnection(
-                    host = resolvedHost,
-                    port = resolvedPort,
-                    crypto = crypto!!,
-                    onAuthPromptListener = {
-                        _connectionState.value = ConnectionState.Authenticating(
-                            "Please check your TV screen and select 'Always allow' / 'OK' on the USB debugging prompt."
-                        )
-                    },
-                    onDisconnectListener = { error ->
-                        handleUnexpectedDisconnect(resolvedHost, resolvedPort, error)
-                    }
-                )
+        // Instantly load cached apps and telemetry for this target so UI populates in 0ms
+        loadCachedAppsForTarget(resolvedHost)
+        loadCachedTelemetryForTarget(resolvedHost)
 
-                conn.connect()
-                activeConnection = conn
-                _connectionState.value = ConnectionState.Connected(resolvedHost, resolvedPort)
-                acquireWakeAndWifiLocks("AdbActive")
-                startHeartbeatWatchdog(resolvedHost, resolvedPort)
-
-                // Quick metadata fetch in background (non-blocking)
-                managerScope.launch(Dispatchers.IO) {
-                    try {
-                        val m = runShell("getprop ro.product.model").trim()
-                        val b = runShell("getprop ro.product.brand").trim()
-                        val modelName = if (m.isNotEmpty()) "$b $m".trim().replaceFirstChar { it.uppercase() } else "Android TV"
-                        val existingSaved = getSavedDevices().find { it.ip == resolvedHost }
-                        val associatedIpv6 = if (resolvedHost.contains(":")) resolvedHost else (existingSaved?.ipv6 ?: "")
-                        saveDevice(
-                            SavedTvDevice(
-                                ip = resolvedHost,
-                                port = resolvedPort,
-                                name = modelName,
-                                model = modelName,
-                                ipv6 = associatedIpv6
-                            )
-                        )
-                    } catch (ignored: Exception) {}
-
-                    // Refresh apps in background with low priority after overview telemetry loads
-                    delay(350L)
-                    refreshInstalledApps()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Connection failed: ${e.message}", e)
-                _connectionState.value = ConnectionState.Error(e.localizedMessage ?: "Failed to connect")
+        try {
+            if (crypto == null) {
+                crypto = AdbCrypto.loadOrGenerate(context)
             }
+
+            val conn = AdbConnection(
+                host = resolvedHost,
+                port = resolvedPort,
+                crypto = crypto!!,
+                onAuthPromptListener = {
+                    _connectionState.value = ConnectionState.Authenticating(
+                        "Please check your TV screen and select 'Always allow' / 'OK' on the USB debugging prompt."
+                    )
+                },
+                onDisconnectListener = { error ->
+                    handleUnexpectedDisconnect(resolvedHost, resolvedPort, error)
+                }
+            )
+
+            conn.connect()
+            activeConnection = conn
+            _connectionState.value = ConnectionState.Connected(resolvedHost, resolvedPort)
+            acquireWakeAndWifiLocks("AdbActive")
+            startHeartbeatWatchdog(resolvedHost, resolvedPort)
+
+            // Refresh overview telemetry and update device registry
+            managerScope.launch(Dispatchers.IO) {
+                try {
+                    val tel = fetchOverviewTelemetry()
+                    val modelName = if (tel.model.isNotEmpty()) "${tel.brand} ${tel.model}".trim().replaceFirstChar { it.uppercase() } else "Android TV"
+                    val existingSaved = getSavedDevices().find { it.ip == resolvedHost }
+                    val associatedIpv6 = if (resolvedHost.contains(":")) resolvedHost else (existingSaved?.ipv6 ?: "")
+                    saveDevice(
+                        SavedTvDevice(
+                            ip = resolvedHost,
+                            port = resolvedPort,
+                            name = modelName,
+                            model = modelName,
+                            ipv6 = associatedIpv6
+                        )
+                    )
+                } catch (ignored: Exception) {}
+
+                // Refresh apps in background with low priority after overview telemetry loads
+                delay(300L)
+                refreshInstalledApps()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Connection failed: ${e.message}", e)
+            _connectionState.value = ConnectionState.Error(e.localizedMessage ?: "Failed to connect")
         }
     }
 
@@ -379,23 +457,37 @@ class AdbManager(private val context: Context) {
      * Tries primary address, falls back to saved IPv6, then auto-discovers if IP changed.
      */
     suspend fun switchToDevice(device: SavedTvDevice) = withContext(Dispatchers.IO) {
-        Log.i(TAG, "switchToDevice: initiating fast switch to ${device.name} (${device.ip})")
-        _connectionState.value = ConnectionState.Connecting("Connecting to ${device.name}...")
+        connectMutex.withLock {
+            val current = activeConnection
+            if (current != null && current.isConnectionOpen() &&
+                (current.host == device.ip || (device.ipv6.isNotBlank() && current.host == device.ipv6))
+            ) {
+                Log.i(TAG, "switchToDevice: already connected to ${device.name}")
+                return@withLock
+            }
 
-        // 1. Try primary address
-        connect(device.ip, device.port)
-        if (isConnected()) return@withContext
+            Log.i(TAG, "switchToDevice: initiating ultra-fast switch to ${device.name} (${device.ip})")
+            _connectionState.value = ConnectionState.Connecting("Connecting to ${device.name}...")
 
-        // 2. Try alternative IPv6 address if primary failed
-        if (device.ipv6.isNotBlank() && device.ipv6 != device.ip) {
-            Log.i(TAG, "switchToDevice: primary unreachable, trying IPv6 ${device.ipv6}")
-            connect(device.ipv6, device.port)
-            if (isConnected()) return@withContext
+            // Instantly switch UI at t=0 using target's cached apps and telemetry
+            loadCachedAppsForTarget(device.ip)
+            loadCachedTelemetryForTarget(device.ip)
+
+            // 1. Try primary address
+            internalConnect(device.ip, device.port)
+            if (isConnected()) return@withLock
+
+            // 2. Try alternative IPv6 address if primary failed
+            if (device.ipv6.isNotBlank() && device.ipv6 != device.ip) {
+                Log.i(TAG, "switchToDevice: primary unreachable, trying IPv6 ${device.ipv6}")
+                internalConnect(device.ipv6, device.port)
+                if (isConnected()) return@withLock
+            }
+
+            // 3. Fallback to dual-stack network auto-discovery
+            Log.i(TAG, "switchToDevice: saved addresses unreachable, running network discovery...")
+            autoDiscoverAndConnectInternal()
         }
-
-        // 3. Fallback to dual-stack network auto-discovery
-        Log.i(TAG, "switchToDevice: saved addresses unreachable, running network discovery...")
-        autoDiscoverAndConnect()
     }
 
     private fun startHeartbeatWatchdog(host: String, port: Int) {
@@ -403,8 +495,8 @@ class AdbManager(private val context: Context) {
         heartbeatJob = managerScope.launch(Dispatchers.IO) {
             while (isActive && isConnected() && !isUserDisconnecting) {
                 try {
-                    // Check TV sleep/wakefulness and keep TCP socket warm
-                    val p = runShell("dumpsys power 2>/dev/null | grep -i mWakefulness=")
+                    // Check TV sleep/wakefulness with fast exit grep
+                    val p = runShell("dumpsys power 2>/dev/null | grep -m 1 -i mWakefulness=")
                     val isSleeping = p.contains("Dozing", ignoreCase = true) || p.contains("Asleep", ignoreCase = true)
                     _isTvSleeping.value = isSleeping
                 } catch (e: Exception) {
@@ -514,10 +606,15 @@ class AdbManager(private val context: Context) {
             fastRemoteStream?.close()
         } catch (ignored: Exception) {}
         fastRemoteStream = null
-        try {
-            activeConnection?.close()
-        } catch (ignored: Exception) {}
+        val oldConn = activeConnection
         activeConnection = null
+        if (oldConn != null) {
+            managerScope.launch(Dispatchers.IO) {
+                try {
+                    oldConn.close()
+                } catch (ignored: Exception) {}
+            }
+        }
         releaseWakeAndWifiLocks()
     }
 
@@ -544,32 +641,10 @@ class AdbManager(private val context: Context) {
             val lastPort = prefs.getInt("last_connected_port", 5555)
 
             if (!lastIp.isNullOrBlank() && !isUserDisconnecting) {
-                val formattedAddr = com.atv.adbcommander.util.NetworkUtils.formatAddress(lastIp, lastPort)
-                Log.i(TAG, "ensureConnected: auto-reconnecting to $formattedAddr")
-                _connectionState.value = ConnectionState.Connecting("Connecting to $formattedAddr...")
-                try {
-                    val conn = AdbConnection(
-                        host = lastIp,
-                        port = lastPort,
-                        crypto = crypto ?: AdbCrypto.loadOrGenerate(context),
-                        onAuthPromptListener = {
-                            _connectionState.value = ConnectionState.Authenticating(
-                                "Please accept ADB prompt on TV screen"
-                            )
-                        },
-                        onDisconnectListener = { error ->
-                            handleUnexpectedDisconnect(lastIp, lastPort, error)
-                        }
-                    )
-                    conn.connect()
-                    activeConnection = conn
-                    _connectionState.value = ConnectionState.Connected(lastIp, lastPort)
-                    acquireWakeAndWifiLocks("AdbActive")
-                    startHeartbeatWatchdog(lastIp, lastPort)
+                internalConnect(lastIp, lastPort)
+                val conn = activeConnection
+                if (conn != null && conn.isConnectionOpen()) {
                     return@withLock conn
-                } catch (e: Exception) {
-                    Log.w(TAG, "ensureConnected failed: ${e.message}")
-                    _connectionState.value = ConnectionState.Error("TV unreachable: ${e.message}")
                 }
             }
 
@@ -1506,12 +1581,18 @@ class AdbManager(private val context: Context) {
 
     suspend fun fetchOverviewTelemetry(): OverviewTelemetry = withContext(Dispatchers.IO) {
         try {
-            val cmd = "echo '===PROPS==='; getprop ro.product.model; getprop ro.product.brand; getprop ro.build.version.release; getprop ro.build.version.security_patch; echo '===STORAGE==='; df -h /data /sdcard 2>/dev/null; echo '===MEM==='; cat /proc/meminfo 2>/dev/null | head -n 6; echo '===CPU==='; head -n 1 /proc/stat; echo '===POWER==='; dumpsys power 2>/dev/null | grep -i mWakefulness="
+            val cmd = "echo '===PROPS==='; getprop ro.product.model; getprop ro.product.brand; getprop ro.build.version.release; getprop ro.build.version.security_patch; echo '===STORAGE==='; df -h /data /sdcard 2>/dev/null; echo '===MEM==='; cat /proc/meminfo 2>/dev/null | head -n 6; echo '===CPU==='; head -n 1 /proc/stat; echo '===POWER==='; dumpsys power 2>/dev/null | grep -m 1 -i mWakefulness=; echo '===LAUNCHER==='; pm resolve-activity -c android.intent.category.HOME android.intent.action.MAIN 2>/dev/null | grep -m 1 -E 'packageName=|name=' || true"
             val out = runShell(cmd)
-            parseOverviewTelemetry(out)
+            val tel = parseOverviewTelemetry(out)
+            _overviewTelemetry.value = tel
+            val host = activeConnection?.host
+            if (!host.isNullOrBlank()) {
+                saveCachedTelemetryForTarget(host, tel)
+            }
+            tel
         } catch (e: Exception) {
             Log.w(TAG, "fetchOverviewTelemetry failed: ${e.message}")
-            OverviewTelemetry()
+            _overviewTelemetry.value
         }
     }
 
@@ -1523,8 +1604,9 @@ class AdbManager(private val context: Context) {
         var storage = StorageInfo()
         var memory = MemoryInfo()
         var cpuPercent = 18
+        var currentLauncher = "Google TV Home"
 
-        val sections = raw.split("===PROPS===", "===STORAGE===", "===MEM===", "===CPU===", "===POWER===")
+        val sections = raw.split("===PROPS===", "===STORAGE===", "===MEM===", "===CPU===", "===POWER===", "===LAUNCHER===")
         if (sections.size >= 5) {
             // 1. Props
             val propLines = sections[1].trim().lines().filter { it.isNotBlank() }
@@ -1604,6 +1686,18 @@ class AdbManager(private val context: Context) {
                 val isSleeping = powerSection.contains("Dozing", ignoreCase = true) || powerSection.contains("Asleep", ignoreCase = true)
                 _isTvSleeping.value = isSleeping
             }
+
+            // 6. Current Launcher
+            if (sections.size >= 7) {
+                val launcherSection = sections[6].trim()
+                val pkgMatch = Regex("packageName=([a-zA-Z0-9_.]+)").find(launcherSection)
+                    ?: Regex("name=([a-zA-Z0-9_.]+)/").find(launcherSection)
+                    ?: Regex("([a-zA-Z0-9_.]+)/[a-zA-Z0-9_.]+").find(launcherSection)
+                if (pkgMatch != null) {
+                    val pkg = pkgMatch.groupValues[1]
+                    currentLauncher = getLauncherFriendlyName(pkg)
+                }
+            }
         }
 
         return OverviewTelemetry(
@@ -1613,7 +1707,8 @@ class AdbManager(private val context: Context) {
             securityPatch = securityPatch,
             storage = storage,
             memory = memory,
-            cpuPercent = cpuPercent
+            cpuPercent = cpuPercent,
+            currentLauncherName = currentLauncher
         )
     }
 
@@ -2710,9 +2805,9 @@ class AdbManager(private val context: Context) {
         }
     }
 
-    suspend fun getModelDebloatRecommendations(): List<DebloatRecommendation> = withContext(Dispatchers.IO) {
-        val brand = try { runShell("getprop ro.product.brand").trim().lowercase() } catch (e: Exception) { "" }
-        val model = try { runShell("getprop ro.product.model").trim().lowercase() } catch (e: Exception) { "" }
+    suspend fun getModelDebloatRecommendations(brandHint: String? = null, modelHint: String? = null): List<DebloatRecommendation> = withContext(Dispatchers.IO) {
+        val brand = (brandHint ?: _overviewTelemetry.value.brand).lowercase()
+        val model = (modelHint ?: _overviewTelemetry.value.model).lowercase()
 
         val list = mutableListOf<DebloatRecommendation>()
 
@@ -2825,8 +2920,15 @@ class AdbManager(private val context: Context) {
     suspend fun fetchInstalledLaunchers(): List<TvLauncherInfo> = withContext(Dispatchers.IO) {
         val launchers = mutableListOf<TvLauncherInfo>()
         try {
-            // Find current default home launcher
-            val resolveOut = runShell("pm resolve-activity -c android.intent.category.HOME android.intent.action.MAIN")
+            // Find current default home launcher and query all home activities in a single fast composite shell script
+            val compositeOut = runShell("pm resolve-activity -c android.intent.category.HOME android.intent.action.MAIN 2>/dev/null; echo '===DIS==='; pm list packages -d 2>/dev/null; echo '===ACT==='; cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null || pm query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null; echo '===CUSTOM==='; pm list packages | grep -E 'projengmenu|flauncher|emotn|wolf|atvlauncher|projectivy|launcherx|tvlauncher|leanbacklauncher' 2>/dev/null || true")
+
+            val sections = compositeOut.split("===DIS===", "===ACT===", "===CUSTOM===")
+            val resolveOut = sections.getOrNull(0) ?: ""
+            val disabledOut = sections.getOrNull(1) ?: ""
+            val queryOut = sections.getOrNull(2) ?: ""
+            val customOut = sections.getOrNull(3) ?: ""
+
             var currentDefaultPkg = ""
             for (line in resolveOut.lines()) {
                 val pkgMatch = Regex("packageName=([a-zA-Z0-9_.]+)").find(line)
@@ -2838,50 +2940,43 @@ class AdbManager(private val context: Context) {
                 }
             }
 
-            // Get disabled packages
-            val disabledPackages = runShell("pm list packages -d")
+            val disabledPackages = disabledOut
                 .lines()
                 .map { it.removePrefix("package:").trim() }
+                .filter { it.isNotEmpty() }
                 .toSet()
 
             val foundPackages = mutableSetOf<String>()
 
-            // Query all activities handling CATEGORY_HOME via cmd package and pm
-            val queries = listOf(
-                runShell("cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME"),
-                runShell("pm query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME")
-            )
+            for (line in queryOut.lines()) {
+                val trimmed = line.trim()
+                if (trimmed.contains("/") && !trimmed.startsWith("activity:", ignoreCase = true)) {
+                    val parts = trimmed.split("/")
+                    val pkg = parts[0].trim()
+                    val act = if (parts.size > 1) parts[1].trim() else ""
 
-            for (queryOut in queries) {
-                for (line in queryOut.lines()) {
-                    val trimmed = line.trim()
-                    if (trimmed.contains("/") && !trimmed.startsWith("activity:", ignoreCase = true)) {
-                        val parts = trimmed.split("/")
-                        val pkg = parts[0].trim()
-                        val act = if (parts.size > 1) parts[1].trim() else ""
+                    if (pkg.isNotEmpty() && foundPackages.add(pkg)) {
+                        val isStock = stockLauncherPackages.contains(pkg) || pkg.contains("launcherx") || pkg.contains("tvlauncher")
+                        val isEnabled = !disabledPackages.contains(pkg)
+                        val isDefault = pkg == currentDefaultPkg
+                        val friendlyName = getLauncherFriendlyName(pkg)
 
-                        if (pkg.isNotEmpty() && foundPackages.add(pkg)) {
-                            val isStock = stockLauncherPackages.contains(pkg) || pkg.contains("launcherx") || pkg.contains("tvlauncher")
-                            val isEnabled = !disabledPackages.contains(pkg)
-                            val isDefault = pkg == currentDefaultPkg
-                            val friendlyName = getLauncherFriendlyName(pkg)
-
-                            launchers.add(
-                                TvLauncherInfo(
-                                    packageName = pkg,
-                                    activityName = act,
-                                    name = friendlyName,
-                                    isStock = isStock,
-                                    isEnabled = isEnabled,
-                                    isCurrentDefault = isDefault
-                                )
+                        launchers.add(
+                            TvLauncherInfo(
+                                packageName = pkg,
+                                activityName = act,
+                                name = friendlyName,
+                                isStock = isStock,
+                                isEnabled = isEnabled,
+                                isCurrentDefault = isDefault
                             )
-                        }
+                        )
                     }
                 }
             }
 
-            // Check known third-party TV launchers that may be installed
+            // Check known third-party TV launchers from customOut without per-app shell queries
+            val installedPackages = customOut.lines().map { it.removePrefix("package:").trim() }.filter { it.isNotEmpty() }.toSet()
             val knownCustomLaunchers = listOf(
                 "com.spocky.projengmenu",
                 "me.efesser.flauncher",
@@ -2894,39 +2989,35 @@ class AdbManager(private val context: Context) {
             )
 
             for (customPkg in knownCustomLaunchers) {
-                if (!foundPackages.contains(customPkg)) {
-                    val isInstalled = runShell("pm path $customPkg").trim().isNotEmpty()
-                    if (isInstalled && foundPackages.add(customPkg)) {
-                        val act = resolveLauncherActivity(customPkg) ?: ""
-                        launchers.add(
-                            TvLauncherInfo(
-                                packageName = customPkg,
-                                activityName = act,
-                                name = getLauncherFriendlyName(customPkg),
-                                isStock = false,
-                                isEnabled = !disabledPackages.contains(customPkg),
-                                isCurrentDefault = customPkg == currentDefaultPkg
-                            )
+                if (installedPackages.contains(customPkg) && !foundPackages.contains(customPkg)) {
+                    foundPackages.add(customPkg)
+                    val act = resolveLauncherActivity(customPkg) ?: ""
+                    launchers.add(
+                        TvLauncherInfo(
+                            packageName = customPkg,
+                            activityName = act,
+                            name = getLauncherFriendlyName(customPkg),
+                            isStock = false,
+                            isEnabled = !disabledPackages.contains(customPkg),
+                            isCurrentDefault = customPkg == currentDefaultPkg
                         )
-                    }
+                    )
                 }
             }
 
             // Also check stock launchers that might be disabled
             for (stockPkg in stockLauncherPackages) {
-                if (!foundPackages.contains(stockPkg)) {
-                    val isInstalled = runShell("pm path $stockPkg").trim().isNotEmpty()
-                    if (isInstalled && foundPackages.add(stockPkg)) {
-                        launchers.add(
-                            TvLauncherInfo(
-                                packageName = stockPkg,
-                                name = getLauncherFriendlyName(stockPkg),
-                                isStock = true,
-                                isEnabled = !disabledPackages.contains(stockPkg),
-                                isCurrentDefault = stockPkg == currentDefaultPkg
-                            )
+                if (installedPackages.contains(stockPkg) && !foundPackages.contains(stockPkg)) {
+                    foundPackages.add(stockPkg)
+                    launchers.add(
+                        TvLauncherInfo(
+                            packageName = stockPkg,
+                            name = getLauncherFriendlyName(stockPkg),
+                            isStock = true,
+                            isEnabled = !disabledPackages.contains(stockPkg),
+                            isCurrentDefault = stockPkg == currentDefaultPkg
                         )
-                    }
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -3246,8 +3337,6 @@ class AdbManager(private val context: Context) {
     // Saved Devices & Auto-Connect
     // ==========================================
 
-    private val prefs = context.getSharedPreferences("atv_saved_devices", Context.MODE_PRIVATE)
-
     fun isAutoConnectEnabled(): Boolean = prefs.getBoolean("pref_auto_connect", true)
 
     fun setAutoConnectEnabled(enabled: Boolean) {
@@ -3316,6 +3405,7 @@ class AdbManager(private val context: Context) {
             .putInt("last_connected_port", device.port)
             .putBoolean("pref_auto_connect", true)
             .apply()
+        _savedDevices.value = current
     }
 
     fun removeSavedDevice(ip: String) {
@@ -3329,6 +3419,7 @@ class AdbManager(private val context: Context) {
             edit.remove("last_connected_ip")
         }
         edit.apply()
+        _savedDevices.value = current
     }
 
     suspend fun autoConnect(): Boolean = withContext(Dispatchers.IO) {
@@ -3344,7 +3435,7 @@ class AdbManager(private val context: Context) {
             if (!lastIp.isNullOrBlank()) {
                 try {
                     Log.d(TAG, "autoConnect: trying last known address $lastIp:$lastPort")
-                    connect(lastIp, lastPort)
+                    internalConnect(lastIp, lastPort)
                     if (isConnected()) return@withLock true
                 } catch (e: Exception) {
                     Log.w(TAG, "autoConnect: last known address $lastIp unreachable: ${e.message}")
@@ -3357,14 +3448,14 @@ class AdbManager(private val context: Context) {
                 if (saved.ip != lastIp) {
                     try {
                         Log.d(TAG, "autoConnect: trying saved device ${saved.ip}:${saved.port}")
-                        connect(saved.ip, saved.port)
+                        internalConnect(saved.ip, saved.port)
                         if (isConnected()) return@withLock true
                     } catch (ignored: Exception) {}
                 }
                 if (saved.ipv6.isNotBlank() && saved.ipv6 != lastIp) {
                     try {
                         Log.d(TAG, "autoConnect: trying saved IPv6 ${saved.ipv6}:${saved.port}")
-                        connect(saved.ipv6, saved.port)
+                        internalConnect(saved.ipv6, saved.port)
                         if (isConnected()) return@withLock true
                     } catch (ignored: Exception) {}
                 }
@@ -3391,7 +3482,7 @@ class AdbManager(private val context: Context) {
             Log.d(TAG, "autoDiscover: found TV at ${device.ip}:${device.port} (${device.name}), connecting...")
             _connectionState.value = ConnectionState.Connecting("Discovered ${device.name}! Connecting...")
             try {
-                connect(device.ip, device.port)
+                internalConnect(device.ip, device.port)
                 return isConnected()
             } catch (e: Exception) {
                 Log.e(TAG, "autoDiscover: failed connecting to ${device.ip}: ${e.message}")
